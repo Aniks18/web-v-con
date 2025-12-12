@@ -318,7 +318,13 @@ function toggleVideo() {
     });
     
     const btn = document.getElementById('toggleVideo');
-    btn.textContent = isVideoEnabled ? '🎥 Stop Video' : '🎥 Start Video';
+    if (isVideoEnabled) {
+        btn.textContent = '🎥 Video On';
+        btn.classList.add('active');
+    } else {
+        btn.textContent = '🎥 Video Off';
+        btn.classList.remove('active');
+    }
 }
 
 // Toggle audio
@@ -329,7 +335,13 @@ function toggleAudio() {
     });
     
     const btn = document.getElementById('toggleAudio');
-    btn.textContent = isAudioEnabled ? '🎤 Mute' : '🎤 Unmute';
+    if (isAudioEnabled) {
+        btn.textContent = '🎤 Audio On';
+        btn.classList.add('active');
+    } else {
+        btn.textContent = '🔇 Audio Off';
+        btn.classList.remove('active');
+    }
 }
 
 // Leave room

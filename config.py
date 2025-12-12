@@ -17,7 +17,7 @@ class Settings:
     API_KEY: str = os.getenv("API_KEY", "dev-api-key-change-in-production")
     ALLOWED_ORIGINS: list = os.getenv(
         "ALLOWED_ORIGINS", 
-        "http://localhost:8000,http://localhost:3000"
+        "*"  # Changed to allow all origins for Render
     ).split(",")
     
     # Storage

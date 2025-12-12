@@ -31,6 +31,7 @@ async def lifespan(app: FastAPI):
     """Application lifespan events."""
     # Startup
     print("Starting WebRTC signaling server...")
+    print(f"Server will listen on {settings.HOST}:{settings.PORT}")
     
     # Start background cleanup task
     cleanup_task_handle = asyncio.create_task(cleanup_task())
@@ -70,9 +71,15 @@ app.include_router(api_router)
 @app.get("/")
 async def root():
     """Root endpoint - serves test client."""
-    with open("static/index.html", "r", encoding="utf-8") as f:
-        html_content = f.read()
-    return HTMLResponse(content=html_content)
+    try:
+        with open("static/index.html", "r", encoding="utf-8") as f:
+            html_content = f.read()
+        return HTMLResponse(content=html_content)
+    except FileNotFoundError:
+        return HTMLResponse(
+            content="<h1>WebRTC Signaling Server</h1><p>Static files not found. Server is running.</p>",
+            status_code=200
+        )
 
 
 @app.get("/health")
@@ -83,6 +90,12 @@ async def health_check():
         "active_connections": len(connection_manager.active_connections),
         "active_rooms": len(room_manager.storage.get_all_rooms())
     }
+
+
+@app.get("/readiness")
+async def readiness_check():
+    """Readiness check for Render."""
+    return {"status": "ready"}
 
 
 @app.websocket("/ws")

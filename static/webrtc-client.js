@@ -14,14 +14,16 @@ const iceServers = {
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
         { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:stun3.l.google.com:19302' },
-        { urls: 'stun:stun4.l.google.com:19302' },
         
-        // Metered STUN
-        { urls: 'stun:stun.relay.metered.ca:80' },
+        // Multiple reliable TURN servers
+        // numb.viagenie.ca - Free TURN server
+        {
+            urls: 'turn:numb.viagenie.ca',
+            username: 'webrtc@live.com',
+            credential: 'muazkh'
+        },
         
-        // TURN servers for media relay (critical for cross-network connectivity)
-        // Metered.ca - Free public TURN service
+        // Metered.ca TURN servers
         {
             urls: 'turn:openrelay.metered.ca:80',
             username: 'openrelayproject',
@@ -38,14 +40,16 @@ const iceServers = {
             credential: 'openrelayproject'
         },
         
-        // Additional TURN servers for redundancy
+        // stunserver.org TURN
+        {
+            urls: 'turn:turn.bistri.com:80',
+            username: 'homeo',
+            credential: 'homeo'
+        },
+        
+        // relay.metered.ca backup endpoints
         {
             urls: 'turn:a.relay.metered.ca:80',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        },
-        {
-            urls: 'turn:a.relay.metered.ca:80?transport=tcp',
             username: 'openrelayproject',
             credential: 'openrelayproject'
         },
@@ -58,15 +62,18 @@ const iceServers = {
             urls: 'turn:a.relay.metered.ca:443?transport=tcp',
             username: 'openrelayproject',
             credential: 'openrelayproject'
+        },
+        
+        // Additional TURN backup
+        {
+            urls: 'turn:relay1.expressturn.com:3478',
+            username: 'efB64MYB1VR6H04CKB',
+            credential: 'pqPT8QYNjbeM1n3E'
         }
     ],
-    // 'all' tries direct connection first, then falls back to TURN relay
     iceTransportPolicy: 'all',
-    // Bundle policy for better connectivity
     bundlePolicy: 'max-bundle',
-    // RTC configuration for better reliability
     rtcpMuxPolicy: 'require',
-    // Increase ICE gathering timeout
     iceCandidatePoolSize: 10
 };
 
@@ -254,8 +261,29 @@ async function createPeerConnection(peerId, createOffer) {
     
     // Handle incoming tracks
     pc.ontrack = (event) => {
-        console.log('Received track from', peerId);
-        addVideoElement(peerId, event.streams[0], `Peer ${peerId.substring(0, 6)}`);
+        console.log('🎬 Received track from', peerId.substring(0,8));
+        console.log('   Track kind:', event.track.kind);
+        console.log('   Track enabled:', event.track.enabled);
+        console.log('   Track readyState:', event.track.readyState);
+        console.log('   Streams:', event.streams.length);
+        
+        if (event.streams && event.streams[0]) {
+            const stream = event.streams[0];
+            console.log('   Stream tracks:', stream.getTracks().length);
+            console.log('   Video tracks:', stream.getVideoTracks().length);
+            console.log('   Audio tracks:', stream.getAudioTracks().length);
+            
+            // Remove and re-add video element to ensure clean state
+            removeVideoElement(peerId);
+            
+            // Add video with a small delay to ensure DOM is ready
+            setTimeout(() => {
+                addVideoElement(peerId, stream, `Peer ${peerId.substring(0, 6)}`);
+                console.log('✅ Video element added for', peerId.substring(0,8));
+            }, 100);
+        } else {
+            console.error('❌ No stream in track event!');
+        }
     };
     
     // Handle ICE candidates
@@ -318,24 +346,33 @@ async function createPeerConnection(peerId, createOffer) {
             pc.getStats().then(stats => {
                 stats.forEach(report => {
                     if (report.type === 'candidate-pair' && report.state === 'succeeded') {
-                        console.log('📡 Active connection type:', report.currentRoundTripTime);
+                        console.log('📡 Active connection:', {
+                            rtt: report.currentRoundTripTime,
+                            bytesSent: report.bytesSent,
+                            bytesReceived: report.bytesReceived
+                        });
                     }
                     if (report.type === 'local-candidate' && report.candidateType) {
-                        console.log('🔌 Local candidate type:', report.candidateType, 
-                                  report.protocol, report.relayProtocol || 'direct');
+                        console.log('🔌 Local candidate:', report.candidateType, 
+                                  report.protocol, report.relayProtocol || 'direct',
+                                  report.address || '');
                     }
                     if (report.type === 'remote-candidate' && report.candidateType) {
-                        console.log('🌐 Remote candidate type:', report.candidateType,
-                                  report.protocol);
+                        console.log('🌐 Remote candidate:', report.candidateType,
+                                  report.protocol, report.address || '');
                     }
                 });
             });
         } else if (pc.iceConnectionState === 'failed') {
-            console.error('❌ ICE connection failed');
-            console.error('Possible causes:');
-            console.error('  1. TURN server unavailable or credentials expired');
-            console.error('  2. Firewall blocking all connection attempts');
-            console.error('  3. Network policies preventing WebRTC');
+            console.error('❌ ICE connection failed - Attempting restart...');
+            
+            // Try ICE restart
+            if (pc.restartIce) {
+                console.log('🔄 Triggering ICE restart...');
+                pc.restartIce();
+            }
+        } else if (pc.iceConnectionState === 'disconnected') {
+            console.warn('⚠️ ICE disconnected - waiting for reconnection...');
         }
     };
     
@@ -441,6 +478,8 @@ async function handleSignal(payload) {
 
 // Add video element to grid
 function addVideoElement(socketId, stream, label, isLocal = false) {
+    console.log(`📺 Adding video element for ${socketId.substring(0,8)}, local=${isLocal}`);
+    
     // Remove existing if any
     removeVideoElement(socketId);
     
@@ -452,9 +491,39 @@ function addVideoElement(socketId, stream, label, isLocal = false) {
     video.srcObject = stream;
     video.autoplay = true;
     video.playsInline = true;
-    if (isLocal) {
-        video.muted = true;
-    }
+    video.muted = isLocal;
+    
+    // Add event listeners to debug video playback
+    video.onloadedmetadata = () => {
+        console.log(`✅ Video metadata loaded for ${socketId.substring(0,8)}`);
+        console.log(`   Dimensions: ${video.videoWidth}x${video.videoHeight}`);
+        video.play().catch(e => console.error('Play error:', e));
+    };
+    
+    video.onplay = () => {
+        console.log(`▶️ Video playing for ${socketId.substring(0,8)}`);
+    };
+    
+    video.onerror = (e) => {
+        console.error(`❌ Video error for ${socketId.substring(0,8)}:`, e);
+    };
+    
+    // Monitor stream active state
+    stream.getTracks().forEach(track => {
+        console.log(`   Track ${track.kind}: enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}`);
+        
+        track.onended = () => {
+            console.log(`⚠️ Track ${track.kind} ended for ${socketId.substring(0,8)}`);
+        };
+        
+        track.onmute = () => {
+            console.log(`🔇 Track ${track.kind} muted for ${socketId.substring(0,8)}`);
+        };
+        
+        track.onunmute = () => {
+            console.log(`🔊 Track ${track.kind} unmuted for ${socketId.substring(0,8)}`);
+        };
+    });
     
     const labelDiv = document.createElement('div');
     labelDiv.className = 'video-label';
@@ -464,6 +533,8 @@ function addVideoElement(socketId, stream, label, isLocal = false) {
     container.appendChild(labelDiv);
     
     document.getElementById('videosGrid').appendChild(container);
+    
+    console.log(`✅ Video element added to DOM for ${socketId.substring(0,8)}`);
 }
 
 // Remove video element
@@ -570,6 +641,67 @@ function handleError(payload) {
 // Initialize on page load
 window.addEventListener('load', () => {
     initWebSocket();
+    
+    // Add diagnostic button (only visible in console)
+    window.diagnoseConnection = () => {
+        console.log('\n=== WEBRTC DIAGNOSTICS ===\n');
+        console.log('Local Stream:', localStream);
+        if (localStream) {
+            console.log('  Video tracks:', localStream.getVideoTracks().length);
+            console.log('  Audio tracks:', localStream.getAudioTracks().length);
+            localStream.getTracks().forEach(track => {
+                console.log(`  ${track.kind}: enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}`);
+            });
+        }
+        
+        console.log('\nPeer Connections:', Object.keys(peerConnections).length);
+        Object.keys(peerConnections).forEach(peerId => {
+            const pc = peerConnections[peerId];
+            console.log(`\nPeer ${peerId.substring(0,8)}:`);
+            console.log('  Connection state:', pc.connectionState);
+            console.log('  ICE state:', pc.iceConnectionState);
+            console.log('  Signaling state:', pc.signalingState);
+            console.log('  Senders:', pc.getSenders().length);
+            console.log('  Receivers:', pc.getReceivers().length);
+            
+            pc.getSenders().forEach((sender, i) => {
+                if (sender.track) {
+                    console.log(`  Sender ${i}: ${sender.track.kind}, enabled=${sender.track.enabled}`);
+                }
+            });
+            
+            pc.getReceivers().forEach((receiver, i) => {
+                if (receiver.track) {
+                    console.log(`  Receiver ${i}: ${receiver.track.kind}, enabled=${receiver.track.enabled}, muted=${receiver.track.muted}, readyState=${receiver.track.readyState}`);
+                }
+            });
+            
+            // Check stats
+            pc.getStats().then(stats => {
+                let hasRelay = false;
+                stats.forEach(report => {
+                    if (report.type === 'local-candidate' && report.candidateType === 'relay') {
+                        hasRelay = true;
+                    }
+                    if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+                        console.log('  Active pair:', {
+                            local: report.localCandidateId,
+                            remote: report.remoteCandidateId,
+                            bytesSent: report.bytesSent,
+                            bytesReceived: report.bytesReceived
+                        });
+                    }
+                });
+                console.log('  Using TURN relay:', hasRelay);
+            });
+        });
+        
+        console.log('\n=== END DIAGNOSTICS ===\n');
+        console.log('Run diagnoseConnection() again to refresh\n');
+    };
+    
+    console.log('%cDiagnostics available!', 'color: green; font-weight: bold; font-size: 16px');
+    console.log('%cType: diagnoseConnection()', 'color: blue; font-size: 14px');
 });
 
 // Cleanup on page unload

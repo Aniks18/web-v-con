@@ -7,12 +7,67 @@ let peerConnections = {}; // socket_id -> RTCPeerConnection
 let isVideoEnabled = true;
 let isAudioEnabled = true;
 
-// STUN/TURN configuration
+// STUN/TURN configuration with multiple fallback servers
 const iceServers = {
     iceServers: [
+        // Google STUN servers (for NAT discovery)
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-    ]
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+        
+        // Metered STUN
+        { urls: 'stun:stun.relay.metered.ca:80' },
+        
+        // TURN servers for media relay (critical for cross-network connectivity)
+        // Metered.ca - Free public TURN service
+        {
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turn:openrelay.metered.ca:443',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        
+        // Additional TURN servers for redundancy
+        {
+            urls: 'turn:a.relay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turn:a.relay.metered.ca:80?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turn:a.relay.metered.ca:443',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turn:a.relay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        }
+    ],
+    // 'all' tries direct connection first, then falls back to TURN relay
+    iceTransportPolicy: 'all',
+    // Bundle policy for better connectivity
+    bundlePolicy: 'max-bundle',
+    // RTC configuration for better reliability
+    rtcpMuxPolicy: 'require',
+    // Increase ICE gathering timeout
+    iceCandidatePoolSize: 10
 };
 
 // Initialize WebSocket connection
@@ -206,6 +261,8 @@ async function createPeerConnection(peerId, createOffer) {
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
         if (event.candidate) {
+            console.log('Sending ICE candidate:', event.candidate.type, 
+                       event.candidate.protocol, event.candidate.address);
             sendMessage({
                 type: 'signal',
                 payload: {
@@ -214,27 +271,103 @@ async function createPeerConnection(peerId, createOffer) {
                     payload: event.candidate.toJSON()
                 }
             });
+        } else {
+            console.log('All ICE candidates have been sent');
         }
     };
     
     // Handle connection state
     pc.onconnectionstatechange = () => {
-        console.log('Connection state with', peerId, ':', pc.connectionState);
+        console.log(`[${peerId.substring(0,8)}] Connection state:`, pc.connectionState);
+        
+        const statusMsg = document.createElement('div');
+        statusMsg.style.cssText = 'position:fixed;top:70px;right:20px;background:rgba(0,0,0,0.8);color:white;padding:10px;border-radius:8px;font-size:12px;z-index:9999;';
+        
+        if (pc.connectionState === 'connected') {
+            console.log('✅ Successfully connected to peer!');
+            statusMsg.textContent = `✅ Connected to ${peerId.substring(0,8)}`;
+            statusMsg.style.background = 'rgba(16, 185, 129, 0.9)';
+        } else if (pc.connectionState === 'connecting') {
+            console.log('🔄 Connecting to peer...');
+            statusMsg.textContent = `🔄 Connecting to ${peerId.substring(0,8)}...`;
+            statusMsg.style.background = 'rgba(251, 191, 36, 0.9)';
+        } else if (pc.connectionState === 'failed') {
+            console.error('❌ Connection failed - This may indicate TURN server issues or network problems');
+            statusMsg.textContent = `❌ Connection failed to ${peerId.substring(0,8)}`;
+            statusMsg.style.background = 'rgba(239, 68, 68, 0.9)';
+        } else if (pc.connectionState === 'disconnected') {
+            console.warn('⚠️ Connection disconnected - May reconnect automatically');
+            statusMsg.textContent = `⚠️ Disconnected from ${peerId.substring(0,8)}`;
+            statusMsg.style.background = 'rgba(234, 179, 8, 0.9)';
+        }
+        
+        document.body.appendChild(statusMsg);
+        setTimeout(() => statusMsg.remove(), 3000);
+    };
+    
+    // Monitor ICE connection state for detailed diagnostics
+    pc.oniceconnectionstatechange = () => {
+        console.log(`[${peerId.substring(0,8)}] ICE connection state:`, pc.iceConnectionState);
+        
+        if (pc.iceConnectionState === 'checking') {
+            console.log('🔍 Checking ICE candidates...');
+        } else if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+            console.log('✅ ICE connection established');
+            
+            // Log which type of connection is being used
+            pc.getStats().then(stats => {
+                stats.forEach(report => {
+                    if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+                        console.log('📡 Active connection type:', report.currentRoundTripTime);
+                    }
+                    if (report.type === 'local-candidate' && report.candidateType) {
+                        console.log('🔌 Local candidate type:', report.candidateType, 
+                                  report.protocol, report.relayProtocol || 'direct');
+                    }
+                    if (report.type === 'remote-candidate' && report.candidateType) {
+                        console.log('🌐 Remote candidate type:', report.candidateType,
+                                  report.protocol);
+                    }
+                });
+            });
+        } else if (pc.iceConnectionState === 'failed') {
+            console.error('❌ ICE connection failed');
+            console.error('Possible causes:');
+            console.error('  1. TURN server unavailable or credentials expired');
+            console.error('  2. Firewall blocking all connection attempts');
+            console.error('  3. Network policies preventing WebRTC');
+        }
+    };
+    
+    // Log ICE gathering state for debugging
+    pc.onicegatheringstatechange = () => {
+        console.log(`[${peerId.substring(0,8)}] ICE gathering state:`, pc.iceGatheringState);
+        if (pc.iceGatheringState === 'complete') {
+            console.log('✅ Finished gathering ICE candidates');
+        }
     };
     
     // Create offer if we're the initiator
     if (createOffer) {
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        
-        sendMessage({
-            type: 'signal',
-            payload: {
-                to: peerId,
-                signal_type: 'offer',
-                payload: pc.localDescription.toJSON()
-            }
-        });
+        try {
+            const offer = await pc.createOffer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: true
+            });
+            await pc.setLocalDescription(offer);
+            
+            console.log('📤 Sending offer to', peerId.substring(0,8));
+            sendMessage({
+                type: 'signal',
+                payload: {
+                    to: peerId,
+                    signal_type: 'offer',
+                    payload: pc.localDescription.toJSON()
+                }
+            });
+        } catch (error) {
+            console.error('Error creating offer:', error);
+        }
     }
     
     return pc;
@@ -244,19 +377,28 @@ async function createPeerConnection(peerId, createOffer) {
 async function handleSignal(payload) {
     const { from, signal_type, payload: signalData } = payload;
     
+    console.log(`📨 Received ${signal_type} from ${from.substring(0,8)}`);
+    
     let pc = peerConnections[from];
     
     // If we don't have a peer connection yet, create one
     if (!pc) {
+        console.log('Creating new peer connection for incoming signal');
         pc = await createPeerConnection(from, false);
     }
     
     try {
         if (signal_type === 'offer') {
+            console.log('📥 Processing offer...');
             await pc.setRemoteDescription(new RTCSessionDescription(signalData));
-            const answer = await pc.createAnswer();
+            
+            const answer = await pc.createAnswer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: true
+            });
             await pc.setLocalDescription(answer);
             
+            console.log('📤 Sending answer to', from.substring(0,8));
             sendMessage({
                 type: 'signal',
                 payload: {
@@ -266,12 +408,34 @@ async function handleSignal(payload) {
                 }
             });
         } else if (signal_type === 'answer') {
+            console.log('📥 Processing answer...');
             await pc.setRemoteDescription(new RTCSessionDescription(signalData));
         } else if (signal_type === 'candidate') {
-            await pc.addIceCandidate(new RTCIceCandidate(signalData));
+            if (pc.remoteDescription) {
+                console.log('➕ Adding ICE candidate');
+                await pc.addIceCandidate(new RTCIceCandidate(signalData));
+            } else {
+                console.log('⏳ Queuing ICE candidate (remote description not set yet)');
+                // Queue the candidate to be added later
+                if (!pc.pendingCandidates) {
+                    pc.pendingCandidates = [];
+                }
+                pc.pendingCandidates.push(signalData);
+            }
+        }
+        
+        // Process any queued candidates after setting remote description
+        if (pc.remoteDescription && pc.pendingCandidates && pc.pendingCandidates.length > 0) {
+            console.log(`Processing ${pc.pendingCandidates.length} queued candidates`);
+            for (const candidate of pc.pendingCandidates) {
+                await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            }
+            pc.pendingCandidates = [];
         }
     } catch (error) {
         console.error('Error handling signal:', error);
+        console.error('Signal type:', signal_type);
+        console.error('Error details:', error.message);
     }
 }
 

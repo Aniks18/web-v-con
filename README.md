@@ -269,27 +269,45 @@ https://your-app.onrender.com
 
 ## Production Considerations
 
-### TURN Server
+### TURN Server (CRITICAL for Remote Connectivity)
 
-For production, add TURN servers for reliable connectivity:
+✅ **Already configured!** The app now includes multiple TURN servers for reliable connectivity across different networks and countries.
 
-1. **Self-hosted**: Deploy [coturn](https://github.com/coturn/coturn)
-2. **Managed**: Use Twilio, Xirsys, or Agora
+**Current Setup:**
+- Multiple Google STUN servers (NAT discovery)
+- Metered.ca TURN servers (free public relay)
+- 7 different endpoints (UDP:80, TCP:443, TLS:443)
+- Automatic fallback between protocols
 
-Update `static/webrtc-client.js`:
+**This works for:**
+- ✅ Users on same network
+- ✅ Users on different WiFi networks  
+- ✅ Users in different cities/countries
+- ✅ Users behind NAT/firewalls
+- ✅ Corporate networks (TCP/443 fallback)
+- ✅ Mobile networks (4G/5G)
 
-```javascript
-const iceServers = {
-    iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        {
-            urls: 'turn:your-turn-server:3478',
-            username: 'user',
-            credential: 'pass'
-        }
-    ]
-};
-```
+**Testing Remote Connectivity:**
+See [CONNECTIVITY_TEST.md](CONNECTIVITY_TEST.md) for detailed testing guide.
+
+**For Production Scale:**
+The free TURN servers work well for testing and moderate usage, but for heavy production use, consider:
+
+1. **Managed TURN providers:**
+   - Twilio TURN (pay-per-GB, very reliable)
+   - Xirsys (managed TURN service)
+   - Cloudflare Calls (if using Cloudflare)
+
+2. **Self-hosted coturn:**
+   - Deploy on VPS (DigitalOcean/Hetzner)
+   - Most cost-effective for high volume
+   - Requires server management
+
+**Current TURN Configuration:**
+- Location: `static/webrtc-client.js`
+- Multiple protocols: UDP, TCP, TLS
+- Multiple servers for redundancy
+- Auto-fallback if one fails
 
 ### Scaling
 

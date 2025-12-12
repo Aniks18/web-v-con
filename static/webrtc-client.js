@@ -181,10 +181,51 @@ async function joinRoom() {
 // Start local media stream
 async function startLocalStream() {
     try {
+        console.log('🎥 Requesting camera and microphone access...');
+        
         localStream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: true
+            video: { 
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            },
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            }
         });
+        
+        console.log('✅ Media stream acquired successfully');
+        console.log(`   Stream id: ${localStream.id}`);
+        console.log(`   Stream active: ${localStream.active}`);
+        console.log(`   Total tracks: ${localStream.getTracks().length}`);
+        
+        // Verify tracks
+        const videoTracks = localStream.getVideoTracks();
+        const audioTracks = localStream.getAudioTracks();
+        
+        console.log(`   Video tracks: ${videoTracks.length}`);
+        videoTracks.forEach((track, i) => {
+            console.log(`     Video ${i}: ${track.label}, enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}`);
+        });
+        
+        console.log(`   Audio tracks: ${audioTracks.length}`);
+        audioTracks.forEach((track, i) => {
+            console.log(`     Audio ${i}: ${track.label}, enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}`);
+        });
+        
+        // Verify we have active tracks
+        if (videoTracks.length === 0 || audioTracks.length === 0) {
+            throw new Error(`Missing tracks - video: ${videoTracks.length}, audio: ${audioTracks.length}`);
+        }
+        
+        // Verify tracks are live
+        const allTracksLive = localStream.getTracks().every(track => track.readyState === 'live');
+        if (!allTracksLive) {
+            throw new Error('Some tracks are not in live state');
+        }
+        
+        console.log('✅ All tracks verified and ready');
         
         // Show room view
         document.getElementById('lobby').classList.add('hidden');
@@ -194,8 +235,10 @@ async function startLocalStream() {
         addVideoElement(mySocketId, localStream, 'You (Local)', true);
         
     } catch (error) {
-        console.error('Error accessing media devices:', error);
-        alert('Could not access camera/microphone. Please grant permissions.');
+        console.error('❌ Error accessing media devices:', error);
+        console.error('   Error name:', error.name);
+        console.error('   Error message:', error.message);
+        alert(`Could not access camera/microphone: ${error.message}\n\nPlease grant permissions and try again.`);
         throw error;
     }
 }
@@ -248,41 +291,78 @@ async function createPeerConnection(peerId, createOffer) {
     peerConnections[peerId] = pc;
     
     // CRITICAL: Add local stream tracks FIRST before creating offer
-    if (localStream) {
+    if (localStream && localStream.getTracks().length > 0) {
         console.log('📤 Adding local tracks to peer connection...');
+        console.log(`   Local stream has ${localStream.getTracks().length} tracks`);
+        
         localStream.getTracks().forEach(track => {
+            console.log(`   Track ${track.kind}: id=${track.id}, enabled=${track.enabled}, readyState=${track.readyState}, muted=${track.muted}`);
+            
+            if (track.readyState === 'ended') {
+                console.error(`❌ Track ${track.kind} is ended! Cannot add to peer connection.`);
+                return;
+            }
+            
             const sender = pc.addTrack(track, localStream);
-            console.log(`   Added ${track.kind} track, enabled=${track.enabled}`);
+            console.log(`   ✅ Added ${track.kind} track to peer connection`);
         });
-        console.log('✅ All local tracks added');
+        
+        // Verify senders
+        const senders = pc.getSenders();
+        console.log(`✅ Peer connection has ${senders.length} senders`);
+        senders.forEach((sender, i) => {
+            if (sender.track) {
+                console.log(`   Sender ${i}: ${sender.track.kind}`);
+            }
+        });
     } else {
-        console.error('❌ No local stream available!');
+        console.error('❌ No local stream available or no tracks in stream!');
+        if (localStream) {
+            console.error(`   Stream exists but has ${localStream.getTracks().length} tracks`);
+        }
+        alert('ERROR: Your camera/microphone is not working. Please check permissions and refresh.');
+        throw new Error('No local stream available');
     }
     
     // Handle incoming tracks
     pc.ontrack = (event) => {
-        console.log('🎬 Received track from', peerId.substring(0,8));
+        console.log('\n🎬 RECEIVED TRACK EVENT from', peerId.substring(0,8));
         console.log('   Track kind:', event.track.kind);
+        console.log('   Track id:', event.track.id);
+        console.log('   Track label:', event.track.label);
         console.log('   Track enabled:', event.track.enabled);
+        console.log('   Track muted:', event.track.muted);
         console.log('   Track readyState:', event.track.readyState);
-        console.log('   Streams:', event.streams.length);
+        console.log('   Streams in event:', event.streams.length);
+        
+        if (event.track.readyState === 'ended') {
+            console.error('❌ Received track is already ended!');
+            return;
+        }
         
         if (event.streams && event.streams[0]) {
             const stream = event.streams[0];
+            console.log('✅ Stream received:', stream.id);
+            console.log('   Stream active:', stream.active);
             console.log('   Stream tracks:', stream.getTracks().length);
             console.log('   Video tracks:', stream.getVideoTracks().length);
             console.log('   Audio tracks:', stream.getAudioTracks().length);
             
+            // Log each track in stream
+            stream.getTracks().forEach((track, idx) => {
+                console.log(`   Track ${idx}: ${track.kind}, enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}`);
+            });
+            
             // Remove and re-add video element to ensure clean state
             removeVideoElement(peerId);
             
-            // Add video with a small delay to ensure DOM is ready
-            setTimeout(() => {
-                addVideoElement(peerId, stream, `Peer ${peerId.substring(0, 6)}`);
-                console.log('✅ Video element added for', peerId.substring(0,8));
-            }, 100);
+            // Add video immediately (no delay)
+            console.log('📺 Creating video element now...');
+            addVideoElement(peerId, stream, `Peer ${peerId.substring(0, 6)}`);
+            console.log('✅ Video element creation completed\n');
         } else {
             console.error('❌ No stream in track event!');
+            console.error('   This should never happen - track must be associated with a stream');
         }
     };
     
@@ -505,6 +585,22 @@ async function handleSignal(payload) {
 // Add video element to grid
 function addVideoElement(socketId, stream, label, isLocal = false) {
     console.log(`📺 Adding video element for ${socketId.substring(0,8)}, local=${isLocal}`);
+    console.log(`   Stream id: ${stream.id}`);
+    console.log(`   Stream active: ${stream.active}`);
+    console.log(`   Stream tracks: ${stream.getTracks().length}`);
+    
+    stream.getTracks().forEach(track => {
+        console.log(`   - ${track.kind}: id=${track.id}, enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}`);
+    });
+    
+    // Verify stream has active tracks
+    const videoTracks = stream.getVideoTracks();
+    const audioTracks = stream.getAudioTracks();
+    
+    if (videoTracks.length === 0 && !isLocal) {
+        console.error(`❌ No video tracks in stream for ${socketId.substring(0,8)}!`);
+        alert(`ERROR: Remote peer's video is not being sent. Ask them to check their camera permissions.`);
+    }
     
     // Remove existing if any
     removeVideoElement(socketId);
@@ -519,11 +615,35 @@ function addVideoElement(socketId, stream, label, isLocal = false) {
     video.playsInline = true;
     video.muted = isLocal;
     
+    // CRITICAL: Add aggressive play attempts
+    let playAttempts = 0;
+    const maxAttempts = 5;
+    
+    const attemptPlay = () => {
+        playAttempts++;
+        console.log(`▶️ Attempting to play video for ${socketId.substring(0,8)} (attempt ${playAttempts}/${maxAttempts})`);
+        
+        video.play()
+            .then(() => {
+                console.log(`✅ Video playing successfully for ${socketId.substring(0,8)}`);
+            })
+            .catch(e => {
+                console.error(`❌ Play attempt ${playAttempts} failed:`, e.message);
+                if (playAttempts < maxAttempts) {
+                    setTimeout(attemptPlay, 500);
+                } else {
+                    console.error(`❌ Failed to play video after ${maxAttempts} attempts`);
+                }
+            });
+    };
+    
     // Add event listeners to debug video playback
     video.onloadedmetadata = () => {
         console.log(`✅ Video metadata loaded for ${socketId.substring(0,8)}`);
         console.log(`   Dimensions: ${video.videoWidth}x${video.videoHeight}`);
-        video.play().catch(e => console.error('Play error:', e));
+        console.log(`   Duration: ${video.duration}`);
+        console.log(`   Ready state: ${video.readyState}`);
+        attemptPlay();
     };
     
     video.onplay = () => {

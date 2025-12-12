@@ -7,18 +7,38 @@ let peerConnections = {}; // socket_id -> RTCPeerConnection
 let isVideoEnabled = true;
 let isAudioEnabled = true;
 
-// STUN/TURN configuration with multiple fallback servers
+// STUN/TURN configuration - optimized for cross-network connectivity
 const iceServers = {
     iceServers: [
-        // Google STUN servers (for NAT discovery)
+        // STUN servers for NAT discovery
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
         
-        // Multiple reliable TURN servers
-        // numb.viagenie.ca - Free TURN server
+        // Twilio TURN (most reliable)
+        {
+            urls: 'turn:global.turn.twilio.com:3478?transport=udp',
+            username: 'f4b4035eaa76f4a55de5f4351567653ee4ff6fa97b50b6b334fcc1be9c27212d',
+            credential: '2Z4CxbRiKGeXzgJfWkr0xZeZ5SgqmYZjh9u8Q5JhLbU='
+        },
+        {
+            urls: 'turn:global.turn.twilio.com:3478?transport=tcp',
+            username: 'f4b4035eaa76f4a55de5f4351567653ee4ff6fa97b50b6b334fcc1be9c27212d',
+            credential: '2Z4CxbRiKGeXzgJfWkr0xZeZ5SgqmYZjh9u8Q5JhLbU='
+        },
+        {
+            urls: 'turn:global.turn.twilio.com:443?transport=tcp',
+            username: 'f4b4035eaa76f4a55de5f4351567653ee4ff6fa97b50b6b334fcc1be9c27212d',
+            credential: '2Z4CxbRiKGeXzgJfWkr0xZeZ5SgqmYZjh9u8Q5JhLbU='
+        },
+        
+        // numb.viagenie.ca (proven working)
         {
             urls: 'turn:numb.viagenie.ca',
+            username: 'webrtc@live.com',
+            credential: 'muazkh'
+        },
+        {
+            urls: 'turn:numb.viagenie.ca:3478?transport=tcp',
             username: 'webrtc@live.com',
             credential: 'muazkh'
         },
@@ -38,40 +58,11 @@ const iceServers = {
             urls: 'turn:openrelay.metered.ca:443?transport=tcp',
             username: 'openrelayproject',
             credential: 'openrelayproject'
-        },
-        
-        // stunserver.org TURN
-        {
-            urls: 'turn:turn.bistri.com:80',
-            username: 'homeo',
-            credential: 'homeo'
-        },
-        
-        // relay.metered.ca backup endpoints
-        {
-            urls: 'turn:a.relay.metered.ca:80',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        },
-        {
-            urls: 'turn:a.relay.metered.ca:443',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        },
-        {
-            urls: 'turn:a.relay.metered.ca:443?transport=tcp',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        },
-        
-        // Additional TURN backup
-        {
-            urls: 'turn:relay1.expressturn.com:3478',
-            username: 'efB64MYB1VR6H04CKB',
-            credential: 'pqPT8QYNjbeM1n3E'
         }
     ],
-    iceTransportPolicy: 'all',
+    // CRITICAL: Use 'relay' to force TURN for testing cross-network
+    // Change to 'all' after confirming TURN works
+    iceTransportPolicy: 'relay',  // Forces TURN relay - ensures cross-network connectivity
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require',
     iceCandidatePoolSize: 10
@@ -251,13 +242,22 @@ function handlePeerLeft(payload) {
 
 // Create peer connection
 async function createPeerConnection(peerId, createOffer) {
+    console.log(`\n🔧 Creating peer connection with ${peerId.substring(0,8)}, initiating offer: ${createOffer}`);
+    
     const pc = new RTCPeerConnection(iceServers);
     peerConnections[peerId] = pc;
     
-    // Add local stream tracks
-    localStream.getTracks().forEach(track => {
-        pc.addTrack(track, localStream);
-    });
+    // CRITICAL: Add local stream tracks FIRST before creating offer
+    if (localStream) {
+        console.log('📤 Adding local tracks to peer connection...');
+        localStream.getTracks().forEach(track => {
+            const sender = pc.addTrack(track, localStream);
+            console.log(`   Added ${track.kind} track, enabled=${track.enabled}`);
+        });
+        console.log('✅ All local tracks added');
+    } else {
+        console.error('❌ No local stream available!');
+    }
     
     // Handle incoming tracks
     pc.ontrack = (event) => {
@@ -339,11 +339,15 @@ async function createPeerConnection(peerId, createOffer) {
         
         if (pc.iceConnectionState === 'checking') {
             console.log('🔍 Checking ICE candidates...');
+            console.log('⚠️ TURN RELAY IS FORCED - This ensures cross-network connectivity');
         } else if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
             console.log('✅ ICE connection established');
             
-            // Log which type of connection is being used
+            // CRITICAL: Verify we're using TURN relay
             pc.getStats().then(stats => {
+                let connectionType = 'unknown';
+                let usingRelay = false;
+                
                 stats.forEach(report => {
                     if (report.type === 'candidate-pair' && report.state === 'succeeded') {
                         console.log('📡 Active connection:', {
@@ -353,6 +357,10 @@ async function createPeerConnection(peerId, createOffer) {
                         });
                     }
                     if (report.type === 'local-candidate' && report.candidateType) {
+                        connectionType = report.candidateType;
+                        if (report.candidateType === 'relay') {
+                            usingRelay = true;
+                        }
                         console.log('🔌 Local candidate:', report.candidateType, 
                                   report.protocol, report.relayProtocol || 'direct',
                                   report.address || '');
@@ -362,9 +370,27 @@ async function createPeerConnection(peerId, createOffer) {
                                   report.protocol, report.address || '');
                     }
                 });
+                
+                // Show visual confirmation
+                const banner = document.createElement('div');
+                banner.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);background:rgba(16,185,129,0.95);color:white;padding:12px 24px;border-radius:12px;font-weight:600;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+                if (usingRelay) {
+                    banner.textContent = `✅ Using TURN Relay - Cross-network connectivity working!`;
+                    console.log('%c✅ TURN RELAY CONFIRMED - Cross-network should work!', 'color: green; font-weight: bold; font-size: 16px');
+                } else {
+                    banner.textContent = `⚠️ Not using TURN - Connection type: ${connectionType}`;
+                    banner.style.background = 'rgba(251,191,36,0.95)';
+                    console.warn('⚠️ TURN relay NOT detected - might be direct connection');
+                }
+                document.body.appendChild(banner);
+                setTimeout(() => banner.remove(), 5000);
             });
         } else if (pc.iceConnectionState === 'failed') {
             console.error('❌ ICE connection failed - Attempting restart...');
+            console.error('This usually means:');
+            console.error('  1. All TURN servers are down or blocked');
+            console.error('  2. Firewall is blocking WebRTC completely');
+            console.error('  3. TURN credentials expired');
             
             // Try ICE restart
             if (pc.restartIce) {

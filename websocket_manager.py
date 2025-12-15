@@ -190,6 +190,28 @@ class ConnectionManager:
             }
         })
     
+    async def handle_chat_message(self, socket_id: str, payload: dict):
+        """Handle chat message and broadcast to all participants in the room."""
+        # Find which room this socket is in
+        room_code = None
+        for code, participants in self.room_participants.items():
+            if socket_id in participants:
+                room_code = code
+                break
+        
+        if not room_code:
+            await self.send_message(socket_id, {
+                "type": "error",
+                "payload": {"code": "NOT_IN_ROOM", "message": "You are not in a room"}
+            })
+            return
+        
+        # Broadcast chat message to all participants (including sender for consistency)
+        await self.broadcast_to_room(room_code, {
+            "type": "chat_message",
+            "payload": payload
+        })
+    
     async def handle_create_room(self, socket_id: str, data: dict):
         """Handle creating a new room via WebSocket (no API key needed)."""
         display_name = data.get("display_name", "Anonymous")
@@ -241,6 +263,8 @@ class ConnectionManager:
                 await self.handle_leave_room(socket_id)
             elif msg_type == "signal":
                 await self.handle_signal(socket_id, payload)
+            elif msg_type == "chat_message":
+                await self.handle_chat_message(socket_id, payload)
             elif msg_type == "heartbeat":
                 # Respond to heartbeat
                 await self.send_message(socket_id, {"type": "pong"})

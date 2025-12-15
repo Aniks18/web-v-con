@@ -442,6 +442,501 @@
             50% { opacity: 0.5; }
         }
         
+        /* Modern Control Bar */
+        .control-bar {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(30, 30, 45, 0.98);
+            backdrop-filter: blur(20px);
+            padding: 16px 24px;
+            border-radius: 100px;
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+        
+        .control-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .control-btn {
+            position: relative;
+            background: rgba(255, 255, 255, 0.08);
+            border: none;
+            color: white;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            padding: 0;
+        }
+        
+        .control-btn .icon {
+            display: block;
+            line-height: 1;
+        }
+        
+        .control-btn .control-label {
+            display: none;
+            font-size: 10px;
+            margin-top: 4px;
+            font-weight: 600;
+        }
+        
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: scale(1.05);
+        }
+        
+        .control-btn.active {
+            background: rgba(99, 102, 241, 0.9);
+        }
+        
+        .control-btn.active:hover {
+            background: rgba(79, 82, 221, 0.9);
+        }
+        
+        .control-btn.leave-btn {
+            background: rgba(239, 68, 68, 0.9);
+            width: 64px;
+            height: 64px;
+            margin-left: 8px;
+        }
+        
+        .control-btn.leave-btn:hover {
+            background: rgba(220, 38, 38, 0.9);
+            transform: scale(1.08);
+        }
+        
+        .badge {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: #ef4444;
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 10px;
+            min-width: 18px;
+            text-align: center;
+        }
+        
+        .meeting-info {
+            display: none; /* Hidden on mobile, shown on desktop */
+        }
+        
+        /* Side Panels (Chat & Participants) */
+        .side-panel {
+            position: fixed;
+            top: 0;
+            width: 360px;
+            height: 100vh;
+            background: rgba(20, 20, 35, 0.98);
+            backdrop-filter: blur(30px);
+            z-index: 999;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .chat-panel {
+            left: 0;
+            transform: translateX(-100%);
+            border-left: none;
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .chat-panel.open {
+            transform: translateX(0);
+        }
+        
+        .participants-panel {
+            right: 0;
+            transform: translateX(100%);
+        }
+        
+        .participants-panel.open {
+            transform: translateX(0);
+        }
+        
+        .panel-header {
+            padding: 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .panel-header h3 {
+            margin: 0;
+            font-size: 20px;
+            color: white;
+        }
+        
+        .close-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+        
+        .close-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: rotate(90deg);
+        }
+        
+        /* Chat Styles */
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.5);
+            margin-top: 40px;
+        }
+        
+        .empty-state p {
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+        
+        .empty-state small {
+            font-size: 13px;
+        }
+        
+        .chat-message {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            max-width: 80%;
+            animation: slideIn 0.3s ease;
+        }
+        
+        .chat-message.own {
+            align-self: flex-end;
+        }
+        
+        .chat-message.other {
+            align-self: flex-start;
+        }
+        
+        .chat-sender {
+            font-size: 12px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 2px;
+        }
+        
+        .chat-bubble {
+            padding: 12px 16px;
+            border-radius: 16px;
+            word-wrap: break-word;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .chat-message.own .chat-bubble {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .chat-message.other .chat-bubble {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border-bottom-left-radius: 4px;
+        }
+        
+        .chat-time {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-top: 2px;
+        }
+        
+        .chat-input-container {
+            padding: 16px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            gap: 12px;
+        }
+        
+        .chat-input-container input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 24px;
+            font-size: 14px;
+        }
+        
+        .chat-input-container input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            background: rgba(255, 255, 255, 0.12);
+        }
+        
+        .send-btn {
+            background: var(--primary-color);
+            border: none;
+            color: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+        
+        .send-btn:hover {
+            background: var(--primary-dark);
+            transform: scale(1.1);
+        }
+        
+        /* Participants List */
+        .participants-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+        
+        .participant-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            transition: all 0.3s;
+        }
+        
+        .participant-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .participant-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 600;
+            color: white;
+            text-transform: uppercase;
+        }
+        
+        .participant-info {
+            flex: 1;
+        }
+        
+        .participant-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: white;
+            margin-bottom: 2px;
+        }
+        
+        .participant-status {
+            display: flex;
+            gap: 8px;
+            font-size: 16px;
+        }
+        
+        .status-icon {
+            opacity: 0.5;
+        }
+        
+        .status-icon.active {
+            opacity: 1;
+        }
+        
+        .you-badge {
+            background: rgba(99, 102, 241, 0.2);
+            color: var(--primary-color);
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+        
+        /* Settings Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s;
+        }
+        
+        .modal.open {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: rgba(30, 30, 45, 0.98);
+            border-radius: 24px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+        
+        .modal-header {
+            padding: 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-header h2 {
+            margin: 0;
+            font-size: 24px;
+            color: white;
+        }
+        
+        .modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+        
+        .settings-section {
+            margin-bottom: 32px;
+        }
+        
+        .settings-section h3 {
+            font-size: 16px;
+            color: white;
+            margin-bottom: 16px;
+        }
+        
+        .settings-section label {
+            display: block;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+        
+        .settings-section select,
+        .settings-section input[type="text"] {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            margin-top: 8px;
+        }
+        
+        .settings-section input[type="checkbox"] {
+            margin-right: 8px;
+            width: 18px;
+            height: 18px;
+        }
+        
+        .modal-footer {
+            padding: 24px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.08);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 12px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
         /* Responsive adjustments */
         @media (max-width: 768px) {
             .container {
@@ -469,14 +964,41 @@
             
             .videos-grid {
                 grid-template-columns: 1fr;
+                margin-bottom: 100px; /* Space for control bar */
             }
             
-            .controls {
+            .control-bar {
                 flex-direction: column;
+                align-items: center;
+                width: auto;
+                padding: 12px 16px;
+                border-radius: 24px;
+                bottom: 12px;
             }
             
-            .btn-control {
+            .control-group {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            .control-btn {
+                width: 48px;
+                height: 48px;
+                font-size: 20px;
+            }
+            
+            .control-btn.leave-btn {
+                width: 56px;
+                height: 56px;
+            }
+            
+            .side-panel {
                 width: 100%;
+            }
+            
+            .modal-content {
+                width: 95%;
+                max-height: 90vh;
             }
         }
         
@@ -497,6 +1019,17 @@
             .room-code {
                 font-size: 20px;
                 letter-spacing: 2px;
+            }
+            
+            .control-btn {
+                width: 44px;
+                height: 44px;
+                font-size: 18px;
+            }
+            
+            .control-btn.leave-btn {
+                width: 52px;
+                height: 52px;
             }
         }
     </style>
@@ -549,22 +1082,129 @@
                         📋 Copy Code
                     </button>
                 </div>
-                <button class="btn-danger" onclick="leaveRoom()">
-                    ⬅️ Leave Room
-                </button>
             </div>
             
             <div class="videos-grid" id="videosGrid">
                 <!-- Videos will be added here dynamically -->
             </div>
             
-            <div class="controls">
-                <button class="btn-control active" id="toggleVideo" onclick="toggleVideo()">
-                    🎥 Video On
-                </button>
-                <button class="btn-control active" id="toggleAudio" onclick="toggleAudio()">
-                    🎤 Audio On
-                </button>
+            <!-- Modern floating control bar -->
+            <div class="control-bar">
+                <div class="control-group">
+                    <button class="control-btn active" id="toggleVideo" onclick="toggleVideo()" title="Turn off camera">
+                        <span class="icon">📹</span>
+                        <span class="control-label">Camera</span>
+                    </button>
+                    <button class="control-btn active" id="toggleAudio" onclick="toggleAudio()" title="Mute microphone">
+                        <span class="icon">🎤</span>
+                        <span class="control-label">Mic</span>
+                    </button>
+                    <button class="control-btn" id="shareScreen" onclick="shareScreen()" title="Share your screen">
+                        <span class="icon">📺</span>
+                        <span class="control-label">Share</span>
+                    </button>
+                    <button class="control-btn" id="toggleChat" onclick="toggleChat()" title="Open chat">
+                        <span class="icon">💬</span>
+                        <span class="control-label">Chat</span>
+                        <span class="badge" id="chatBadge" style="display:none;">0</span>
+                    </button>
+                    <button class="control-btn" id="toggleParticipants" onclick="toggleParticipants()" title="Show participants">
+                        <span class="icon">👥</span>
+                        <span class="control-label">People</span>
+                        <span class="badge" id="participantCount">1</span>
+                    </button>
+                    <button class="control-btn" id="toggleSettings" onclick="toggleSettings()" title="Settings">
+                        <span class="icon">⚙️</span>
+                        <span class="control-label">Settings</span>
+                    </button>
+                    <button class="control-btn leave-btn" onclick="leaveRoom()" title="Leave meeting">
+                        <span class="icon">📞</span>
+                        <span class="control-label">Leave</span>
+                    </button>
+                </div>
+                <div class="meeting-info">
+                    <span class="room-code-badge">
+                        Room: <strong id="roomCodeBadge"></strong>
+                    </span>
+                </div>
+            </div>
+            
+            <!-- Chat Panel (slide-in from left) -->
+            <div class="side-panel chat-panel" id="chatPanel">
+                <div class="panel-header">
+                    <h3>💬 Chat</h3>
+                    <button class="close-btn" onclick="toggleChat()">✕</button>
+                </div>
+                <div class="chat-messages" id="chatMessages">
+                    <div class="empty-state">
+                        <p>No messages yet</p>
+                        <small>Send a message to start the conversation</small>
+                    </div>
+                </div>
+                <div class="chat-input-container">
+                    <input type="text" id="chatInput" placeholder="Type a message..." maxlength="500" onkeypress="if(event.key==='Enter') sendChatMessage()">
+                    <button class="send-btn" onclick="sendChatMessage()" title="Send message">
+                        <span>📤</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Participants Panel (slide-in from right) -->
+            <div class="side-panel participants-panel" id="participantsPanel">
+                <div class="panel-header">
+                    <h3>👥 Participants</h3>
+                    <button class="close-btn" onclick="toggleParticipants()">✕</button>
+                </div>
+                <div class="participants-list" id="participantsList">
+                    <!-- Participants will be added dynamically -->
+                </div>
+            </div>
+            
+            <!-- Settings Modal -->
+            <div class="modal" id="settingsModal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>⚙️ Settings</h2>
+                        <button class="close-btn" onclick="toggleSettings()">✕</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="settings-section">
+                            <h3>📹 Video</h3>
+                            <label>Camera
+                                <select id="cameraSelect" onchange="changeCamera()">
+                                    <option>Loading cameras...</option>
+                                </select>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="blurBackground" onchange="toggleBackgroundBlur()">
+                                Blur background
+                            </label>
+                        </div>
+                        <div class="settings-section">
+                            <h3>🎤 Audio</h3>
+                            <label>Microphone
+                                <select id="microphoneSelect" onchange="changeMicrophone()">
+                                    <option>Loading microphones...</option>
+                                </select>
+                            </label>
+                            <label>Speaker
+                                <select id="speakerSelect" onchange="changeSpeaker()">
+                                    <option>Loading speakers...</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div class="settings-section">
+                            <h3>🎨 General</h3>
+                            <label>Display Name
+                                <input type="text" id="displayNameSetting" placeholder="Your name" maxlength="50">
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn-secondary" onclick="toggleSettings()">Close</button>
+                        <button class="btn-primary" onclick="saveSettings()">Save Changes</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

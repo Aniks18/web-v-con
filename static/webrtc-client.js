@@ -81,32 +81,54 @@ const iceServers = {
     iceCandidatePoolSize: 10
 };
 
-// Initialize WebSocket connection
+// Initialize WebSocket connection with reconnection logic
+let wsReconnectAttempts = 0;
+const maxReconnectAttempts = 5;
+
 function initWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws`;
     
-    ws = new WebSocket(wsUrl);
-    
-    ws.onopen = () => {
-        console.log('WebSocket connected');
-        updateStatus('connected', 'Connected to server');
-    };
-    
-    ws.onmessage = async (event) => {
-        const message = JSON.parse(event.data);
-        await handleMessage(message);
-    };
-    
-    ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        updateStatus('error', 'Connection error');
-    };
-    
-    ws.onclose = () => {
-        console.log('WebSocket disconnected');
-        updateStatus('error', 'Disconnected from server');
-    };
+    try {
+        ws = new WebSocket(wsUrl);
+        
+        ws.onopen = () => {
+            console.log('✅ WebSocket connected');
+            wsReconnectAttempts = 0;
+            updateStatus('connected', 'Connected to server');
+        };
+        
+        ws.onmessage = async (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                await handleMessage(message);
+            } catch (error) {
+                console.error('❌ Error handling message:', error);
+            }
+        };
+        
+        ws.onerror = (error) => {
+            console.error('❌ WebSocket error:', error);
+            updateStatus('error', 'Connection error');
+        };
+        
+        ws.onclose = (event) => {
+            console.log('WebSocket disconnected, code:', event.code);
+            updateStatus('error', 'Disconnected from server');
+            
+            // Attempt reconnection if not in a room and below max attempts
+            if (!currentRoomCode && wsReconnectAttempts < maxReconnectAttempts) {
+                wsReconnectAttempts++;
+                console.log(`Attempting to reconnect... (${wsReconnectAttempts}/${maxReconnectAttempts})`);
+                setTimeout(() => {
+                    initWebSocket();
+                }, 2000 * wsReconnectAttempts);
+            }
+        };
+    } catch (error) {
+        console.error('❌ Failed to create WebSocket:', error);
+        updateStatus('error', 'Failed to connect');
+    }
 }
 
 // Handle incoming messages
@@ -848,7 +870,13 @@ function copyRoomCode() {
 // Send WebSocket message
 function sendMessage(message) {
     if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(message));
+        try {
+            ws.send(JSON.stringify(message));
+        } catch (error) {
+            console.error('❌ Failed to send message:', error);
+        }
+    } else {
+        console.warn('⚠️ WebSocket not ready, state:', ws ? ws.readyState : 'null');
     }
 }
 
@@ -872,6 +900,16 @@ function handleError(payload) {
 // Initialize on page load
 window.addEventListener('load', () => {
     initWebSocket();
+    
+    // Initialize UI components safely
+    setTimeout(() => {
+        if (typeof updateParticipantsList === 'function') {
+            updateParticipantsList();
+        }
+        if (typeof populateDeviceSelects === 'function') {
+            populateDeviceSelects();
+        }
+    }, 100);
     
     // Add diagnostic button (only visible in console)
     window.diagnoseConnection = () => {
@@ -933,10 +971,6 @@ window.addEventListener('load', () => {
     
     console.log('%cDiagnostics available!', 'color: green; font-weight: bold; font-size: 16px');
     console.log('%cType: diagnoseConnection()', 'color: blue; font-size: 14px');
-    
-    // Initialize UI
-    updateParticipantsList();
-    populateDeviceSelects();
 });
 
 // ===== NEW UI FUNCTIONS =====

@@ -1,9 +1,15 @@
-# WebRTC Video Conferencing Server
+# 🐜 ANT V - Professional Video Conferencing Platform
 
-A Python-based WebRTC signaling server with 6-character room codes for easy video conferencing.
+A modern, real-time video conferencing application built with WebRTC, FastAPI, and WebSockets.
 
-## Features
+## ✨ Features
 
+### Core Functionality
+- 🎥 **HD Video & Audio** - High-quality peer-to-peer communication
+- 📺 **Screen Sharing** - Share your screen with participants
+- 💬 **Real-time Chat** - In-meeting text messaging
+- 👥 **Participant Management** - See who's in the meeting with live status indicators
+- ⚙️ **Settings Panel** - Device selection, display name, preferences
 - **Simple Room Creation**: Generate 6-character room codes (e.g., `6a18t3`)
 - **WebRTC Signaling**: Full peer-to-peer connection management
 - **REST API**: Programmatic room creation with API key authentication

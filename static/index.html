@@ -2,8 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebRTC Video Conference - Professional</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="ANT V - Professional video conferencing platform with screen sharing, chat, and real-time collaboration">
+    <meta name="theme-color" content="#6366f1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>ANT V - Professional Video Conferencing</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -94,6 +98,48 @@
         .logo-icon {
             font-size: clamp(32px, 5vw, 42px);
             filter: drop-shadow(0 2px 8px rgba(99, 102, 241, 0.5));
+        }
+        
+        /* Brand Header Styles */
+        .brand-header {
+            text-align: center;
+            margin-bottom: 40px;
+            animation: fadeIn 0.8s ease-out;
+        }
+        
+        .brand-logo {
+            font-size: clamp(48px, 10vw, 72px);
+            margin-bottom: 12px;
+            filter: drop-shadow(0 4px 12px rgba(99, 102, 241, 0.4));
+            animation: bounce 2s ease-in-out infinite;
+        }
+        
+        .brand-title {
+            font-size: clamp(32px, 8vw, 56px);
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+            letter-spacing: 2px;
+        }
+        
+        .brand-subtitle {
+            font-size: clamp(14px, 2vw, 18px);
+            color: var(--text-secondary);
+            font-weight: 500;
+            opacity: 0.9;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
         }
         
         .lobby {
@@ -939,17 +985,36 @@
         
         /* Responsive adjustments */
         @media (max-width: 768px) {
-            .container {
-                padding: 20px;
+            body {
+                padding: 8px;
             }
             
-            h1 {
-                font-size: 24px;
+            .container {
+                padding: 16px;
+                min-height: calc(100vh - 16px);
+            }
+            
+            .brand-header {
+                margin-bottom: 24px;
+            }
+            
+            .brand-logo {
+                font-size: 48px;
+            }
+            
+            .brand-title {
+                font-size: 32px;
+            }
+            
+            .brand-subtitle {
+                font-size: 14px;
             }
             
             .room-header {
                 flex-direction: column;
                 align-items: stretch;
+                padding: 16px;
+                gap: 12px;
             }
             
             .room-info {
@@ -1036,10 +1101,11 @@
 </head>
 <body>
     <div class="container">
-        <h1>
-            <span class="logo-icon">🎥</span>
-            <span>WebRTC Video Conference</span>
-        </h1>
+        <div class="brand-header">
+            <div class="brand-logo">🐜</div>
+            <h1 class="brand-title">ANT V</h1>
+            <p class="brand-subtitle">Professional Video Conferencing</p>
+        </div>
         
         <!-- Lobby View -->
         <div id="lobby" class="lobby">

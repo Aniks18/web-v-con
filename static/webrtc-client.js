@@ -10,40 +10,14 @@ let isAudioEnabled = true;
 // STUN/TURN configuration - optimized for cross-network connectivity
 const iceServers = {
     iceServers: [
-        // STUN servers for NAT discovery
+        // Multiple STUN servers for NAT discovery
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
         
-        // Twilio TURN (most reliable)
-        {
-            urls: 'turn:global.turn.twilio.com:3478?transport=udp',
-            username: 'f4b4035eaa76f4a55de5f4351567653ee4ff6fa97b50b6b334fcc1be9c27212d',
-            credential: '2Z4CxbRiKGeXzgJfWkr0xZeZ5SgqmYZjh9u8Q5JhLbU='
-        },
-        {
-            urls: 'turn:global.turn.twilio.com:3478?transport=tcp',
-            username: 'f4b4035eaa76f4a55de5f4351567653ee4ff6fa97b50b6b334fcc1be9c27212d',
-            credential: '2Z4CxbRiKGeXzgJfWkr0xZeZ5SgqmYZjh9u8Q5JhLbU='
-        },
-        {
-            urls: 'turn:global.turn.twilio.com:443?transport=tcp',
-            username: 'f4b4035eaa76f4a55de5f4351567653ee4ff6fa97b50b6b334fcc1be9c27212d',
-            credential: '2Z4CxbRiKGeXzgJfWkr0xZeZ5SgqmYZjh9u8Q5JhLbU='
-        },
-        
-        // numb.viagenie.ca (proven working)
-        {
-            urls: 'turn:numb.viagenie.ca',
-            username: 'webrtc@live.com',
-            credential: 'muazkh'
-        },
-        {
-            urls: 'turn:numb.viagenie.ca:3478?transport=tcp',
-            username: 'webrtc@live.com',
-            credential: 'muazkh'
-        },
-        
-        // Metered.ca TURN servers
+        // Metered.ca free TURN servers (most reliable free option)
         {
             urls: 'turn:openrelay.metered.ca:80',
             username: 'openrelayproject',
@@ -58,11 +32,50 @@ const iceServers = {
             urls: 'turn:openrelay.metered.ca:443?transport=tcp',
             username: 'openrelayproject',
             credential: 'openrelayproject'
+        },
+        {
+            urls: 'turns:openrelay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        
+        // numb.viagenie.ca backup
+        {
+            urls: 'turn:numb.viagenie.ca',
+            username: 'webrtc@live.com',
+            credential: 'muazkh'
+        },
+        
+        // Backup relay servers
+        {
+            urls: 'turn:relay1.expressturn.com:3478',
+            username: 'efB64MYB1VR6H04CKB',
+            credential: 'pqPT8QYNjbeM1n3E'
+        },
+        {
+            urls: 'turn:a.relay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turn:a.relay.metered.ca:80?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turn:a.relay.metered.ca:443',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turn:a.relay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
         }
     ],
-    // CRITICAL: Use 'relay' to force TURN for testing cross-network
-    // Change to 'all' after confirming TURN works
-    iceTransportPolicy: 'relay',  // Forces TURN relay - ensures cross-network connectivity
+    // Switch to 'all' to try direct connection first, then fallback to TURN
+    // This gives better performance when possible
+    iceTransportPolicy: 'all',
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require',
     iceCandidatePoolSize: 10
@@ -324,6 +337,18 @@ async function createPeerConnection(peerId, createOffer) {
         throw new Error('No local stream available');
     }
     
+    // CRITICAL: Add transceivers to ensure media is negotiated even if tracks haven't been added yet
+    // This ensures that the peer connection is ready to receive audio and video
+    const transceivers = pc.getTransceivers();
+    if (transceivers.length === 0 || !transceivers.some(t => t.receiver.track.kind === 'audio')) {
+        pc.addTransceiver('audio', { direction: 'sendrecv' });
+        console.log('➕ Added audio transceiver');
+    }
+    if (transceivers.length === 0 || !transceivers.some(t => t.receiver.track.kind === 'video')) {
+        pc.addTransceiver('video', { direction: 'sendrecv' });
+        console.log('➕ Added video transceiver');
+    }
+    
     // Handle incoming tracks
     pc.ontrack = (event) => {
         console.log('\n🎬 RECEIVED TRACK EVENT from', peerId.substring(0,8));
@@ -419,7 +444,7 @@ async function createPeerConnection(peerId, createOffer) {
         
         if (pc.iceConnectionState === 'checking') {
             console.log('🔍 Checking ICE candidates...');
-            console.log('⚠️ TURN RELAY IS FORCED - This ensures cross-network connectivity');
+            console.log('🌐 Trying direct connection first, will use TURN if needed');
         } else if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
             console.log('✅ ICE connection established');
             
@@ -455,12 +480,12 @@ async function createPeerConnection(peerId, createOffer) {
                 const banner = document.createElement('div');
                 banner.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);background:rgba(16,185,129,0.95);color:white;padding:12px 24px;border-radius:12px;font-weight:600;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
                 if (usingRelay) {
-                    banner.textContent = `✅ Using TURN Relay - Cross-network connectivity working!`;
-                    console.log('%c✅ TURN RELAY CONFIRMED - Cross-network should work!', 'color: green; font-weight: bold; font-size: 16px');
+                    banner.textContent = `✅ Connected via TURN Relay (cross-network)`;
+                    console.log('%c✅ TURN RELAY ACTIVE - Cross-network connection successful!', 'color: green; font-weight: bold; font-size: 16px');
                 } else {
-                    banner.textContent = `⚠️ Not using TURN - Connection type: ${connectionType}`;
-                    banner.style.background = 'rgba(251,191,36,0.95)';
-                    console.warn('⚠️ TURN relay NOT detected - might be direct connection');
+                    banner.textContent = `✅ Connected directly (${connectionType})`;
+                    banner.style.background = 'rgba(59,130,246,0.95)';
+                    console.log(`%c✅ DIRECT CONNECTION - Using ${connectionType}`, 'color: blue; font-weight: bold; font-size: 16px');
                 }
                 document.body.appendChild(banner);
                 setTimeout(() => banner.remove(), 5000);

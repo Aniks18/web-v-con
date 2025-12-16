@@ -6,6 +6,8 @@ let currentRoomCode = null;
 let peerConnections = {}; // socket_id -> RTCPeerConnection
 let isVideoEnabled = true;
 let isAudioEnabled = true;
+let isAppVisible = true;
+let mediaTrackErrorRecovery = false;
 
 // STUN/TURN configuration - optimized for cross-network connectivity
 const iceServers = {
@@ -113,15 +115,30 @@ function initWebSocket() {
         };
         
         ws.onclose = (event) => {
-            console.log('WebSocket disconnected, code:', event.code);
-            updateStatus('error', 'Disconnected from server');
+            console.log('⚠️ WebSocket disconnected, code:', event.code);
             
-            // Attempt reconnection if not in a room and below max attempts
-            if (!currentRoomCode && wsReconnectAttempts < maxReconnectAttempts) {
+            // Only show error if not intentional disconnect
+            if (event.code !== 1000) {
+                updateStatus('error', 'Disconnected from server');
+            }
+            
+            // Attempt reconnection if below max attempts (even if in room to maintain connection)
+            if (wsReconnectAttempts < maxReconnectAttempts && event.code !== 1000) {
                 wsReconnectAttempts++;
-                console.log(`Attempting to reconnect... (${wsReconnectAttempts}/${maxReconnectAttempts})`);
+                console.log(`🔄 Attempting to reconnect... (${wsReconnectAttempts}/${maxReconnectAttempts})`);
                 setTimeout(() => {
                     initWebSocket();
+                    // If we were in a room, try to rejoin
+                    if (currentRoomCode && localStream) {
+                        console.log('🔄 Reconnecting to room:', currentRoomCode);
+                        sendMessage({
+                            type: 'join_room',
+                            payload: {
+                                room_code: currentRoomCode,
+                                display_name: myDisplayName
+                            }
+                        });
+                    }
                 }, 2000 * wsReconnectAttempts);
             }
         };
@@ -245,14 +262,42 @@ async function startLocalStream() {
         const videoTracks = localStream.getVideoTracks();
         const audioTracks = localStream.getAudioTracks();
         
-        console.log(`   Video tracks: ${videoTracks.length}`);
+        console.log(`📹 Video tracks: ${videoTracks.length}`);
         videoTracks.forEach((track, i) => {
             console.log(`     Video ${i}: ${track.label}, enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}`);
+            
+            // Add error handler for track issues (camera taken by another app)
+            track.onended = () => {
+                console.warn('⚠️ Video track ended unexpectedly');
+                handleMediaTrackError('video', track);
+            };
+            
+            track.onmute = () => {
+                console.warn('⚠️ Video track muted');
+            };
+            
+            track.onunmute = () => {
+                console.log('✅ Video track unmuted');
+            };
         });
         
-        console.log(`   Audio tracks: ${audioTracks.length}`);
+        console.log(`🎤 Audio tracks: ${audioTracks.length}`);
         audioTracks.forEach((track, i) => {
             console.log(`     Audio ${i}: ${track.label}, enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}`);
+            
+            // Add error handler for track issues
+            track.onended = () => {
+                console.warn('⚠️ Audio track ended unexpectedly');
+                handleMediaTrackError('audio', track);
+            };
+            
+            track.onmute = () => {
+                console.warn('⚠️ Audio track muted');
+            };
+            
+            track.onunmute = () => {
+                console.log('✅ Audio track unmuted');
+            };
         });
         
         // Verify we have active tracks
@@ -776,26 +821,14 @@ function removeVideoElement(socketId) {
 
 // Toggle video
 function toggleVideo() {
+    if (!localStream) return;
+    
     isVideoEnabled = !isVideoEnabled;
     localStream.getVideoTracks().forEach(track => {
         track.enabled = isVideoEnabled;
     });
     
-    const btn = document.getElementById('toggleVideo');
-    const icon = btn.querySelector('.icon');
-    const label = btn.querySelector('.control-label');
-    
-    if (isVideoEnabled) {
-        if (icon) icon.textContent = '📹';
-        if (label) label.textContent = 'Camera';
-        btn.classList.add('active');
-        btn.title = 'Turn off camera';
-    } else {
-        if (icon) icon.textContent = '📹̶';
-        if (label) label.textContent = 'Camera';
-        btn.classList.remove('active');
-        btn.title = 'Turn on camera';
-    }
+    updateVideoButton();
     
     // Update participants list
     if (typeof updateParticipantsList === 'function') {
@@ -805,26 +838,14 @@ function toggleVideo() {
 
 // Toggle audio
 function toggleAudio() {
+    if (!localStream) return;
+    
     isAudioEnabled = !isAudioEnabled;
     localStream.getAudioTracks().forEach(track => {
         track.enabled = isAudioEnabled;
     });
     
-    const btn = document.getElementById('toggleAudio');
-    const icon = btn.querySelector('.icon');
-    const label = btn.querySelector('.control-label');
-    
-    if (isAudioEnabled) {
-        if (icon) icon.textContent = '🎤';
-        if (label) label.textContent = 'Mic';
-        btn.classList.add('active');
-        btn.title = 'Mute microphone';
-    } else {
-        if (icon) icon.textContent = '🔇';
-        if (label) label.textContent = 'Mic';
-        btn.classList.remove('active');
-        btn.title = 'Unmute microphone';
-    }
+    updateAudioButton();
     
     // Update participants list
     if (typeof updateParticipantsList === 'function') {
@@ -1372,3 +1393,179 @@ window.addEventListener('beforeunload', () => {
         ws.close();
     }
 });
+
+// Handle visibility changes - prevent disconnection when app goes to background
+document.addEventListener('visibilitychange', () => {
+    isAppVisible = !document.hidden;
+    
+    if (document.hidden) {
+        console.log('📱 App went to background');
+        // Keep connection alive, just log the state change
+        // DO NOT disconnect or leave room
+    } else {
+        console.log('📱 App came to foreground');
+        
+        // Check if we need to reconnect WebSocket
+        if (ws.readyState !== WebSocket.OPEN && currentRoomCode) {
+            console.log('🔄 Reconnecting WebSocket after app return');
+            initWebSocket();
+        }
+        
+        // Check media tracks are still working
+        if (localStream && currentRoomCode) {
+            const videoTrack = localStream.getVideoTracks()[0];
+            const audioTrack = localStream.getAudioTracks()[0];
+            
+            if (videoTrack && videoTrack.readyState === 'ended') {
+                console.warn('⚠️ Video track ended while in background, attempting recovery');
+                handleMediaTrackError('video', videoTrack);
+            }
+            
+            if (audioTrack && audioTrack.readyState === 'ended') {
+                console.warn('⚠️ Audio track ended while in background, attempting recovery');
+                handleMediaTrackError('audio', audioTrack);
+            }
+        }
+    }
+});
+
+// Handle media track errors (camera taken by another app like Snapchat)
+async function handleMediaTrackError(trackType, failedTrack) {
+    if (mediaTrackErrorRecovery) {
+        console.log('⏳ Already recovering media track');
+        return;
+    }
+    
+    mediaTrackErrorRecovery = true;
+    console.log(`🔧 Attempting to recover ${trackType} track...`);
+    
+    try {
+        // Get constraints for the specific track type
+        const constraints = {};
+        if (trackType === 'video') {
+            constraints.video = true;
+            constraints.audio = false;
+        } else {
+            constraints.video = false;
+            constraints.audio = true;
+        }
+        
+        // Try to get a new track
+        const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+        const newTrack = trackType === 'video' ? newStream.getVideoTracks()[0] : newStream.getAudioTracks()[0];
+        
+        if (newTrack) {
+            console.log(`✅ Successfully acquired new ${trackType} track`);
+            
+            // Replace the old track in local stream
+            if (localStream) {
+                const oldTracks = trackType === 'video' ? localStream.getVideoTracks() : localStream.getAudioTracks();
+                oldTracks.forEach(track => {
+                    localStream.removeTrack(track);
+                    track.stop();
+                });
+                localStream.addTrack(newTrack);
+                
+                // Update local video element
+                const localVideo = document.getElementById(`video-${mySocketId}`)?.querySelector('video');
+                if (localVideo) {
+                    localVideo.srcObject = localStream;
+                }
+                
+                // Add event handlers to new track
+                newTrack.onended = () => handleMediaTrackError(trackType, newTrack);
+                newTrack.onmute = () => console.warn(`⚠️ ${trackType} track muted`);
+                newTrack.onunmute = () => console.log(`✅ ${trackType} track unmuted`);
+            }
+            
+            // Replace track in all peer connections
+            for (const [socketId, pc] of Object.entries(peerConnections)) {
+                const sender = pc.getSenders().find(s => 
+                    s.track && s.track.kind === trackType
+                );
+                if (sender) {
+                    await sender.replaceTrack(newTrack);
+                    console.log(`✅ Replaced ${trackType} track for peer ${socketId}`);
+                }
+            }
+            
+            // Update UI state
+            if (trackType === 'video') {
+                isVideoEnabled = true;
+                updateVideoButton();
+            } else {
+                isAudioEnabled = true;
+                updateAudioButton();
+            }
+            
+            console.log(`✅ ${trackType} track recovery complete`);
+        }
+    } catch (error) {
+        console.error(`❌ Failed to recover ${trackType} track:`, error);
+        
+        // Show user-friendly notification
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(239, 68, 68, 0.95);
+            color: white;
+            padding: 16px 24px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 10000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            max-width: 90%;
+            text-align: center;
+        `;
+        notification.textContent = `${trackType === 'video' ? '📹' : '🎤'} ${trackType === 'video' ? 'Camera' : 'Microphone'} was taken by another app. Please close that app and toggle ${trackType === 'video' ? 'camera' : 'mic'} off/on.`;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.style.transition = 'opacity 0.3s';
+            notification.style.opacity = '0';
+            setTimeout(() => notification.remove(), 300);
+        }, 5000);
+    } finally {
+        mediaTrackErrorRecovery = false;
+    }
+}
+
+function updateVideoButton() {
+    const videoBtn = document.getElementById('toggleVideo');
+    if (!videoBtn) return;
+    
+    const icon = videoBtn.querySelector('.icon');
+    
+    if (isVideoEnabled) {
+        videoBtn.classList.add('active');
+        if (icon) icon.textContent = '📹';
+        videoBtn.title = 'Turn off camera';
+    } else {
+        videoBtn.classList.remove('active');
+        if (icon) icon.textContent = '🚫';
+        videoBtn.title = 'Turn on camera';
+    }
+}
+
+function updateAudioButton() {
+    const audioBtn = document.getElementById('toggleAudio');
+    if (!audioBtn) return;
+    
+    const icon = audioBtn.querySelector('.icon');
+    
+    if (isAudioEnabled) {
+        audioBtn.classList.add('active');
+        if (icon) icon.textContent = '🎤';
+        audioBtn.title = 'Mute microphone';
+    } else {
+        audioBtn.classList.remove('active');
+        if (icon) icon.textContent = '🔇';
+        audioBtn.title = 'Unmute microphone';
+    }
+}
+

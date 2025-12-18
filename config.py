@@ -39,26 +39,39 @@ class Settings:
         
         # Validate API key
         if not self.API_KEY:
-            print("\n" + "="*70)
-            print("⚠️  WARNING: No API_KEY set in environment!")
-            print("="*70)
-            print("For development, you can run:")
-            dev_key = self._generate_secure_key()[:16]
-            print(f"\n  $env:API_KEY=\"dev-key-{dev_key}\"; python start.py")
-            print("\nFor production (Render), generate a secure key:")
-            print("\n  python -c \"import secrets; print(secrets.token_urlsafe(32))\"")
-            print("\nThen set it in your Render environment variables.")
-            print("="*70 + "\n")
+            is_render = os.getenv("RENDER") or os.getenv("RENDER_SERVICE_NAME")
             
-            # In development, allow but warn. In production (Render), this will fail.
-            if os.getenv("RENDER"):  # Render sets this env var
-                raise ValueError("API_KEY environment variable is required for production")
+            if is_render:
+                # Production (Render) - fail with clear instructions
+                print("\n" + "="*70)
+                print("❌ DEPLOYMENT FAILED: Missing API_KEY")
+                print("="*70)
+                print("\n🔧 TO FIX THIS:")
+                print("\n1. Go to your Render Dashboard")
+                print("2. Select your service")
+                print("3. Go to 'Environment' tab")
+                print("4. Add a new environment variable:")
+                print("   - Key: API_KEY")
+                print("   - Value: Generate using command below")
+                print("\n5. Generate a secure key:")
+                print("   python -c \"import secrets; print(secrets.token_urlsafe(32))\"")
+                print("\n6. Save the environment variable")
+                print("7. Render will automatically redeploy")
+                print("\n" + "="*70 + "\n")
+                raise ValueError("API_KEY environment variable is required for production. See instructions above.")
             else:
-                print("⚠️  Continuing in DEVELOPMENT mode with weak security...")
-                print("⚠️  DO NOT use in production!\n")
-                # Set a development-only key
+                # Development mode - allow with warning
+                print("\n" + "="*70)
+                print("⚠️  WARNING: No API_KEY set in environment!")
+                print("="*70)
+                print("Running in DEVELOPMENT mode with auto-generated key.")
+                print("\nFor production, generate a secure key:")
+                print("  python -c \"import secrets; print(secrets.token_urlsafe(32))\"")
+                print("="*70 + "\n")
+                
                 self.API_KEY = f"dev-insecure-key-{self._generate_secure_key()[:16]}"
                 print(f"📝 Development API Key: {self.API_KEY}\n")
+                print("⚠️  DO NOT use this in production!\n")
     
     @staticmethod
     def _generate_secure_key() -> str:

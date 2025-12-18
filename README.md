@@ -1,412 +1,231 @@
-# 🐜 ANT V - Professional Video Conferencing Platform
+# WebRTC Signaling API
 
-A modern, real-time video conferencing application built with WebRTC, FastAPI, and WebSockets.
+Production-ready WebRTC signaling server with API key authentication for video conferencing integration.
 
-## ✨ Features
+## 🚀 Features
 
-### Core Functionality
-- 🎥 **HD Video & Audio** - High-quality peer-to-peer communication
-- 📺 **Screen Sharing** - Share your screen with participants
-- 💬 **Real-time Chat** - In-meeting text messaging
-- 👥 **Participant Management** - See who's in the meeting with live status indicators
-- ⚙️ **Settings Panel** - Device selection, display name, preferences
-- **Simple Room Creation**: Generate 6-character room codes (e.g., `6a18t3`)
-- **WebRTC Signaling**: Full peer-to-peer connection management
-- **REST API**: Programmatic room creation with API key authentication
-- **WebSocket**: Real-time signaling for SDP/ICE exchange
-- **JSON Storage**: Lightweight file-based persistence (easily upgradable to Supabase)
-- **Test Client**: Built-in HTML/JS client for testing
+- ✅ **API-First Design** - REST API for room management
+- ✅ **WebSocket Signaling** - Real-time WebRTC signaling
+- ✅ **API Key Authentication** - Secure endpoint access
+- ✅ **Automatic Cleanup** - Expired room management
+- ✅ **Room Management** - Create, join, monitor rooms
+- ✅ **Production Ready** - Designed for Render deployment
+- ✅ **Full Documentation** - API docs & integration guides
 
-## Architecture
+## 📡 Quick Start
 
-- **Backend**: Python FastAPI with WebSocket support
-- **Storage**: Thread-safe JSON file storage
-- **Protocol**: WebRTC (STUN for NAT traversal, add TURN for production)
-- **Deployment**: Render-ready with Docker support
-
-## Quick Start
-
-### 1. Install Dependencies
+### 1. Generate API Key
 
 ```bash
-# Create virtual environment
-python -m venv venv
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
 
-# Activate (Windows)
-venv\Scripts\activate
+### 2. Set Environment Variable
 
-# Activate (Linux/Mac)
-source venv/bin/activate
+```bash
+export API_KEY="your-generated-api-key"
+```
 
-# Install packages
+### 3. Install & Run
+
+```bash
 pip install -r requirements.txt
-```
-
-### 2. Configuration
-
-Create a `.env` file (copy from `.env.example`):
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` and set your API key:
-
-```env
-API_KEY=your-secret-api-key-here
-```
-
-### 3. Run Locally
-
-```bash
-python main.py
-```
-
-Or with uvicorn:
-
-```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+python start.py
 ```
 
 ### 4. Test
 
-Open your browser and navigate to:
-
-```
-http://localhost:8000
-```
-
-- Click "Create New Room" to generate a room code
-- Open another browser tab/window and enter the code to join
-- Grant camera/microphone permissions
-
-## API Documentation
-
-### REST Endpoints (Require API Key)
-
-#### Create Room
-
 ```bash
-POST /api/rooms
-Headers: X-API-Key: your-api-key
+# Check health
+curl http://localhost:8000/health
 
-Body:
-{
-  "owner_id": "optional",
-  "ttl_hours": 24,
-  "max_participants": 50
-}
-
-Response:
-{
-  "room_code": "6a18t3",
-  "created_at": "2025-12-12T10:00:00",
-  "expires_at": "2025-12-13T10:00:00"
-}
-```
-
-#### Get Room Info
-
-```bash
-GET /api/rooms/{room_code}
-Headers: X-API-Key: your-api-key
-
-Response:
-{
-  "room_code": "6a18t3",
-  "state": "open",
-  "participant_count": 2,
-  "participants": [...]
-}
-```
-
-#### Delete Room
-
-```bash
-DELETE /api/rooms/{room_code}
-Headers: X-API-Key: your-api-key
-```
-
-### WebSocket Signaling
-
-Connect to: `ws://localhost:8000/ws`
-
-#### Client → Server Messages
-
-**Join Room:**
-```json
-{
-  "type": "join_room",
-  "payload": {
-    "room_code": "6a18t3",
-    "display_name": "John"
-  }
-}
-```
-
-**Signal (SDP/ICE):**
-```json
-{
-  "type": "signal",
-  "payload": {
-    "to": "socket-id",
-    "signal_type": "offer|answer|candidate",
-    "payload": { ... }
-  }
-}
-```
-
-**Leave Room:**
-```json
-{
-  "type": "leave_room",
-  "payload": {}
-}
-```
-
-#### Server → Client Messages
-
-**Connected:**
-```json
-{
-  "type": "connected",
-  "payload": {
-    "socket_id": "uuid"
-  }
-}
-```
-
-**Joined:**
-```json
-{
-  "type": "joined",
-  "payload": {
-    "room_code": "6a18t3",
-    "your_socket_id": "uuid",
-    "peers": [{"socket_id": "...", "display_name": "..."}]
-  }
-}
-```
-
-**Peer Joined:**
-```json
-{
-  "type": "peer_joined",
-  "payload": {
-    "socket_id": "uuid",
-    "display_name": "John"
-  }
-}
-```
-
-**Signal:**
-```json
-{
-  "type": "signal",
-  "payload": {
-    "from": "socket-id",
-    "signal_type": "offer|answer|candidate",
-    "payload": { ... }
-  }
-}
-```
-
-## Project Structure
-
-```
-web-v-con/
-├── main.py                 # FastAPI application entry point
-├── config.py              # Configuration management
-├── models.py              # Pydantic models
-├── storage.py             # JSON file storage
-├── room_manager.py        # Room lifecycle management
-├── websocket_manager.py   # WebSocket connection handling
-├── api.py                 # REST API endpoints
-├── requirements.txt       # Python dependencies
-├── .env.example          # Environment template
-├── Dockerfile            # Docker configuration
-├── Procfile              # Render deployment
-├── static/
-│   ├── index.html        # Test client UI
-│   └── webrtc-client.js  # WebRTC client logic
-└── data/
-    └── rooms.json        # Room storage (auto-created)
-```
-
-## Deployment to Render
-
-### Step 1: Push to GitHub
-
-```bash
-git init
-git add .
-git commit -m "Initial commit"
-git remote add origin YOUR_REPO_URL
-git push -u origin main
-```
-
-### Step 2: Create Render Service
-
-1. Go to [Render Dashboard](https://dashboard.render.com/)
-2. Click "New +" → "Web Service"
-3. Connect your GitHub repository
-4. Configure:
-   - **Name**: web-v-con
-   - **Environment**: Python 3
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-
-### Step 3: Set Environment Variables
-
-In Render dashboard, add:
-
-```
-API_KEY=your-production-api-key
-ALLOWED_ORIGINS=https://your-app.onrender.com
-```
-
-### Step 4: Deploy
-
-Render will automatically build and deploy. Access at:
-
-```
-https://your-app.onrender.com
-```
-
-## Production Considerations
-
-### TURN Server (CRITICAL for Remote Connectivity)
-
-✅ **Already configured!** The app now includes multiple TURN servers for reliable connectivity across different networks and countries.
-
-**Current Setup:**
-- Multiple Google STUN servers (NAT discovery)
-- Metered.ca TURN servers (free public relay)
-- 7 different endpoints (UDP:80, TCP:443, TLS:443)
-- Automatic fallback between protocols
-
-**This works for:**
-- ✅ Users on same network
-- ✅ Users on different WiFi networks  
-- ✅ Users in different cities/countries
-- ✅ Users behind NAT/firewalls
-- ✅ Corporate networks (TCP/443 fallback)
-- ✅ Mobile networks (4G/5G)
-
-**Testing Remote Connectivity:**
-See [CONNECTIVITY_TEST.md](CONNECTIVITY_TEST.md) for detailed testing guide.
-
-**For Production Scale:**
-The free TURN servers work well for testing and moderate usage, but for heavy production use, consider:
-
-1. **Managed TURN providers:**
-   - Twilio TURN (pay-per-GB, very reliable)
-   - Xirsys (managed TURN service)
-   - Cloudflare Calls (if using Cloudflare)
-
-2. **Self-hosted coturn:**
-   - Deploy on VPS (DigitalOcean/Hetzner)
-   - Most cost-effective for high volume
-   - Requires server management
-
-**Current TURN Configuration:**
-- Location: `static/webrtc-client.js`
-- Multiple protocols: UDP, TCP, TLS
-- Multiple servers for redundancy
-- Auto-fallback if one fails
-
-### Scaling
-
-For multiple server instances:
-
-1. Use Redis for room storage instead of JSON
-2. Implement Redis pub/sub for cross-instance signaling
-3. Use sticky sessions or consistent hashing for WebSocket routing
-
-### Security
-
-- Change default API key in production
-- Use HTTPS/WSS (Render provides this automatically)
-- Implement rate limiting
-- Add user authentication if needed
-- Validate room code access patterns
-
-### Migration to Supabase
-
-To migrate from JSON to Supabase:
-
-1. Install Supabase client:
-   ```bash
-   pip install supabase
-   ```
-
-2. Create tables in Supabase:
-   ```sql
-   CREATE TABLE rooms (
-     room_code VARCHAR(6) PRIMARY KEY,
-     created_at TIMESTAMP,
-     expires_at TIMESTAMP,
-     state VARCHAR(20),
-     max_participants INT,
-     participants JSONB
-   );
-   ```
-
-3. Replace `storage.py` methods with Supabase queries
-
-## Testing
-
-### Local Testing
-
-1. Open two browser tabs to `http://localhost:8000`
-2. Create room in first tab
-3. Copy code and join in second tab
-
-### API Testing
-
-```bash
 # Create room
 curl -X POST http://localhost:8000/api/rooms \
-  -H "X-API-Key: dev-api-key-change-in-production" \
+  -H "X-API-Key: your-api-key" \
   -H "Content-Type: application/json" \
-  -d '{"ttl_hours": 24}'
-
-# Get room info
-curl -X GET http://localhost:8000/api/rooms/XXXXXX \
-  -H "X-API-Key: dev-api-key-change-in-production"
+  -d '{"owner_id":"test","ttl_hours":1}'
 ```
+
+## 📚 Documentation
+
+- **[API Integration Guide](./API_INTEGRATION.md)** - Complete API reference for your ed-tech platform
+- **[Render Deployment Guide](./RENDER_DEPLOYMENT.md)** - Deploy to Render in 5 minutes
+- **[API Docs (Swagger)](http://localhost:8000/api/docs)** - Interactive API documentation
+- **[ReDoc](http://localhost:8000/api/redoc)** - Alternative API documentation
+
+## 🔑 Core Endpoints
+
+### REST API (requires X-API-Key header)
+
+```
+POST   /api/rooms              - Create new room
+GET    /api/rooms/{code}       - Get room info
+GET    /api/rooms              - List all rooms
+DELETE /api/rooms/{code}       - Delete room
+GET    /api/statistics         - Get platform statistics
+GET    /health                 - Health check (no auth)
+```
+
+### WebSocket
+
+```
+ws://localhost:8000/ws         - WebRTC signaling
+```
+
+## 🌐 Deploy to Render
+
+### Quick Deploy
+
+1. **Push to GitHub**
+2. **Connect to Render** - It will detect `render.yaml`
+3. **Set API_KEY** in environment variables
+4. **Deploy** - Done! 🎉
+
+See [RENDER_DEPLOYMENT.md](./RENDER_DEPLOYMENT.md) for detailed instructions.
+
+## 🔧 Configuration
+
+### Required Environment Variables
+
+```env
+API_KEY=your-secure-api-key-here
+```
+
+### Optional Environment Variables
+
+```env
+ALLOWED_ORIGINS=*                    # CORS origins (comma-separated)
+ROOM_TTL_HOURS=24                    # Room lifetime
+MAX_PARTICIPANTS_PER_ROOM=50         # Max participants
+PORT=8000                            # Server port
+HOST=0.0.0.0                         # Server host
+```
+
+## 📱 Integration Example
+
+### Create Room from Your Backend
+
+```javascript
+const response = await fetch('https://your-app.onrender.com/api/rooms', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-API-Key': process.env.SIGNALING_API_KEY
+  },
+  body: JSON.stringify({
+    owner_id: teacherId,
+    ttl_hours: 2,
+    max_participants: 30
+  })
+});
+
+const { room_code } = await response.json();
+// Share room_code with students
+```
+
+### Connect from Frontend
+
+```javascript
+const ws = new WebSocket('wss://your-app.onrender.com/ws');
+
+ws.onopen = () => {
+  ws.send(JSON.stringify({
+    type: 'join',
+    payload: {
+      room_code: 'a7x9k2',
+      display_name: 'John Doe',
+      user_id: 'student_123'
+    }
+  }));
+};
+
+ws.onmessage = (event) => {
+  const message = JSON.parse(event.data);
+  // Handle signaling messages
+};
+```
+
+## 🛡️ Security
+
+- **API Key Authentication** - All endpoints require X-API-Key header
+- **CORS Protection** - Configure allowed origins
+- **Room Expiration** - Automatic cleanup of expired rooms
+- **User Tracking** - Associate participants with user IDs
+
+## 📊 Monitoring
 
 ### Health Check
 
 ```bash
-curl http://localhost:8000/health
+curl https://your-app.onrender.com/health
 ```
 
-## Troubleshooting
+Returns:
+```json
+{
+  "status": "healthy",
+  "metrics": {
+    "active_websocket_connections": 15,
+    "active_rooms": 3,
+    "api_authentication": "enabled"
+  }
+}
+```
 
-### Camera/Microphone Not Working
+### Statistics
 
-- Ensure HTTPS in production (required for getUserMedia)
-- Check browser permissions
-- Test with `chrome://webrtc-internals`
+```bash
+curl -H "X-API-Key: your-key" \
+     https://your-app.onrender.com/api/statistics
+```
 
-### Peers Not Connecting
+## 🏗️ Architecture
 
-- Check firewall settings
-- Verify STUN server is accessible
-- Add TURN server for NAT traversal
-- Check browser console for ICE connection states
+```
+Your Ed-Tech Platform
+    ↓ (HTTP/REST)
+WebRTC Signaling API (This Service)
+    ↓ (WebSocket)
+Frontend Clients (Students/Teachers)
+    ↓ (WebRTC P2P)
+Direct Video/Audio Connection
+```
 
-### WebSocket Connection Failing
+## 🎯 Use Cases
 
-- Verify server is running
-- Check CORS settings in `.env`
-- Ensure firewall allows WebSocket connections
+- **Live Classes** - Teachers conduct video lessons
+- **Tutoring Sessions** - 1-on-1 or small group tutoring
+- **Study Groups** - Student-led video study rooms
+- **Office Hours** - Instructor office hours
+- **Parent-Teacher Meetings** - Video conferences
 
-## License
+## 📦 Tech Stack
 
-MIT
+- **FastAPI** - Modern Python web framework
+- **WebSockets** - Real-time communication
+- **Uvicorn** - ASGI server
+- **Pydantic** - Data validation
+- **Python 3.11+** - Latest Python features
 
-## Support
+## 🤝 Integration Support
 
-For issues and questions, please open a GitHub issue.
+This API is designed to integrate seamlessly with:
+- React / Next.js frontends
+- Vue.js applications
+- Angular applications
+- Mobile apps (React Native, Flutter)
+- Any platform that supports WebSockets and WebRTC
+
+## 📝 License
+
+MIT License - Use freely in your ed-tech platform
+
+## 🆘 Support
+
+- **Issues**: Check logs in Render dashboard
+- **API Docs**: Visit `/api/docs` on your deployment
+- **Integration Help**: See [API_INTEGRATION.md](./API_INTEGRATION.md)
+
+---
+
+**Ready to integrate video conferencing into your ed-tech platform? Start with [API_INTEGRATION.md](./API_INTEGRATION.md)!** 🚀

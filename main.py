@@ -49,10 +49,22 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI app
 app = FastAPI(
-    title="WebRTC Signaling Server",
-    description="WebRTC video conferencing with 6-char room codes",
-    version="1.0.0",
-    lifespan=lifespan
+    title="WebRTC Signaling API",
+    description="""Production-ready WebRTC signaling server with API key authentication.
+    
+    This service provides:
+    - Room creation and management
+    - WebSocket signaling for WebRTC connections
+    - Real-time participant management
+    - Automatic room cleanup
+    
+    All REST API endpoints require X-API-Key header authentication.
+    WebSocket connections authenticate during the join-room flow.
+    """,
+    version="2.0.0",
+    lifespan=lifespan,
+    docs_url="/api/docs",
+    redoc_url="/api/redoc"
 )
 
 # CORS middleware
@@ -70,25 +82,38 @@ app.include_router(api_router)
 
 @app.get("/")
 async def root():
-    """Root endpoint - serves test client."""
-    try:
-        with open("static/index.html", "r", encoding="utf-8") as f:
-            html_content = f.read()
-        return HTMLResponse(content=html_content)
-    except FileNotFoundError:
-        return HTMLResponse(
-            content="<h1>WebRTC Signaling Server</h1><p>Static files not found. Server is running.</p>",
-            status_code=200
-        )
+    """Root endpoint - API information."""
+    return {
+        "service": "WebRTC Signaling API",
+        "version": "2.0.0",
+        "status": "operational",
+        "endpoints": {
+            "documentation": "/api/docs",
+            "health": "/health",
+            "api": "/api/*",
+            "websocket": "/ws"
+        },
+        "authentication": "All API endpoints require X-API-Key header",
+        "integration_docs": "See API_INTEGRATION.md for complete integration guide"
+    }
 
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
+    """Health check endpoint - returns service status and metrics."""
+    from datetime import datetime
     return {
         "status": "healthy",
-        "active_connections": len(connection_manager.active_connections),
-        "active_rooms": len(room_manager.storage.get_all_rooms())
+        "timestamp": datetime.utcnow().isoformat(),
+        "metrics": {
+            "active_websocket_connections": len(connection_manager.active_connections),
+            "active_rooms": len(room_manager.storage.get_all_rooms()),
+            "api_authentication": "enabled"
+        },
+        "environment": {
+            "max_participants_per_room": settings.MAX_PARTICIPANTS_PER_ROOM,
+            "room_ttl_hours": settings.ROOM_TTL_HOURS
+        }
     }
 
 
@@ -124,11 +149,15 @@ async def websocket_endpoint(websocket: WebSocket):
         connection_manager.disconnect(socket_id)
 
 
-# Mount static files (for test client)
+# Optional: Mount static files (for test client) - only if directory exists
+# This is optional and not required for API functionality
 try:
-    app.mount("/static", StaticFiles(directory="static"), name="static")
-except Exception:
-    print("Warning: static directory not found. Test client won't be available.")
+    from pathlib import Path
+    if Path("static").exists():
+        app.mount("/static", StaticFiles(directory="static"), name="static")
+        print("Info: Static test client available at /static/")
+except Exception as e:
+    print(f"Info: Static files not mounted: {e}")
 
 
 if __name__ == "__main__":

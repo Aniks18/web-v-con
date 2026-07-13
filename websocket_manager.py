@@ -193,12 +193,8 @@ class ConnectionManager:
     async def handle_chat_message(self, socket_id: str, payload: dict):
         """Handle chat message and broadcast to all participants in the room."""
         # Find which room this socket is in
-        room_code = None
-        for code, participants in self.room_participants.items():
-            if socket_id in participants:
-                room_code = code
-                break
-        
+        room_code = self.socket_to_room.get(socket_id)
+
         if not room_code:
             await self.send_message(socket_id, {
                 "type": "error",

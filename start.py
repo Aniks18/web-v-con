@@ -10,6 +10,13 @@ import subprocess
 from pathlib import Path
 import shutil
 
+# Windows consoles default to cp1252 and crash on emoji output. Force UTF-8.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 
 def print_header():
     """Print welcome banner."""

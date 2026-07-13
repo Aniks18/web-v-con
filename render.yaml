@@ -5,7 +5,9 @@ services:
     runtime: python-3.11
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 2
+    # WebSocket signaling keeps connection + room state in-memory per process,
+    # so this MUST run as a single worker. Multiple workers break signaling.
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1
     healthCheckPath: /health
     autoDeploy: true
     
@@ -27,9 +29,9 @@ services:
       
       - key: DATA_FILE
         value: "data/rooms.json"
-    
-    # Disk for persistent storage (optional)
-    disk:
-      name: webrtc-data
-      mountPath: /opt/render/project/src/data
-      sizeGB: 1
+
+    # NOTE: Render's free plan does not support persistent disks, so none is
+    # attached here. Room data lives on ephemeral storage and is reset on
+    # redeploy/restart — fine for signaling, since rooms are short-lived (TTL).
+    # To persist rooms, upgrade the plan and add a `disk:` block mounted at
+    # /opt/render/project/src/data.

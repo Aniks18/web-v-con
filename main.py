@@ -2,9 +2,10 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, JSONResponse
 import asyncio
 import uuid
+from pathlib import Path
 from contextlib import asynccontextmanager
 
 from config import settings
@@ -67,11 +68,13 @@ app = FastAPI(
     redoc_url="/api/redoc"
 )
 
-# CORS middleware
+# CORS middleware. Auth is via the X-API-Key header (not cookies), so
+# allow_credentials stays False — that lets a wildcard origin ("*") actually
+# work for cross-origin REST callers instead of being blocked by browsers.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -80,10 +83,15 @@ app.add_middleware(
 app.include_router(api_router)
 
 
+INDEX_HTML = Path(__file__).parent / "static" / "index.html"
+
+
 @app.get("/")
 async def root():
-    """Root endpoint - API information."""
-    return {
+    """Serve the web client if present, else return API information."""
+    if INDEX_HTML.exists():
+        return FileResponse(str(INDEX_HTML))
+    return JSONResponse({
         "service": "WebRTC Signaling API",
         "version": "2.0.0",
         "status": "operational",
@@ -95,7 +103,7 @@ async def root():
         },
         "authentication": "All API endpoints require X-API-Key header",
         "integration_docs": "See API_INTEGRATION.md for complete integration guide"
-    }
+    })
 
 
 @app.get("/health")
@@ -149,13 +157,13 @@ async def websocket_endpoint(websocket: WebSocket):
         connection_manager.disconnect(socket_id)
 
 
-# Optional: Mount static files (for test client) - only if directory exists
-# This is optional and not required for API functionality
+# Mount static files (web client). Uses an absolute path so it works
+# regardless of the process working directory.
 try:
-    from pathlib import Path
-    if Path("static").exists():
-        app.mount("/static", StaticFiles(directory="static"), name="static")
-        print("Info: Static test client available at /static/")
+    static_dir = Path(__file__).parent / "static"
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+        print(f"Info: Static web client available at /static/ ({static_dir})")
 except Exception as e:
     print(f"Info: Static files not mounted: {e}")
 

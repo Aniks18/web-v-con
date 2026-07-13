@@ -36,42 +36,19 @@ class Settings:
         """Ensure data directory exists and validate critical settings."""
         data_path = Path(self.DATA_FILE).parent
         data_path.mkdir(parents=True, exist_ok=True)
-        
-        # Validate API key
+
+        # API key only guards the admin REST API. End users create/join rooms
+        # over WebSocket without a key, so a missing key must never block boot
+        # or deployment. Auto-generate a secure one and warn instead.
         if not self.API_KEY:
-            is_render = os.getenv("RENDER") or os.getenv("RENDER_SERVICE_NAME")
-            
-            if is_render:
-                # Production (Render) - fail with clear instructions
-                print("\n" + "="*70)
-                print("❌ DEPLOYMENT FAILED: Missing API_KEY")
-                print("="*70)
-                print("\n🔧 TO FIX THIS:")
-                print("\n1. Go to your Render Dashboard")
-                print("2. Select your service")
-                print("3. Go to 'Environment' tab")
-                print("4. Add a new environment variable:")
-                print("   - Key: API_KEY")
-                print("   - Value: Generate using command below")
-                print("\n5. Generate a secure key:")
-                print("   python -c \"import secrets; print(secrets.token_urlsafe(32))\"")
-                print("\n6. Save the environment variable")
-                print("7. Render will automatically redeploy")
-                print("\n" + "="*70 + "\n")
-                raise ValueError("API_KEY environment variable is required for production. See instructions above.")
-            else:
-                # Development mode - allow with warning
-                print("\n" + "="*70)
-                print("⚠️  WARNING: No API_KEY set in environment!")
-                print("="*70)
-                print("Running in DEVELOPMENT mode with auto-generated key.")
-                print("\nFor production, generate a secure key:")
-                print("  python -c \"import secrets; print(secrets.token_urlsafe(32))\"")
-                print("="*70 + "\n")
-                
-                self.API_KEY = f"dev-insecure-key-{self._generate_secure_key()[:16]}"
-                print(f"📝 Development API Key: {self.API_KEY}\n")
-                print("⚠️  DO NOT use this in production!\n")
+            self.API_KEY = self._generate_secure_key()
+            print("=" * 70)
+            print("WARNING: No API_KEY set in environment.")
+            print("An admin API key was auto-generated for this run:")
+            print(f"  {self.API_KEY}")
+            print("The user-facing app (create/join rooms) works without it.")
+            print("Set API_KEY in the environment to use the REST admin API.")
+            print("=" * 70)
     
     @staticmethod
     def _generate_secure_key() -> str:

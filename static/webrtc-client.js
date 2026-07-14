@@ -9,79 +9,39 @@ let isAudioEnabled = true;
 let isAppVisible = true;
 let mediaTrackErrorRecovery = false;
 
-// STUN/TURN configuration - optimized for cross-network connectivity
-const iceServers = {
+// STUN/TURN configuration. TURN servers come from the backend
+// (/api/ice-servers), driven by env vars, so credentials stay out of the
+// client and can't silently expire in this file. STUN-only default until the
+// fetch completes — enough for same-network peers.
+let iceServers = {
     iceServers: [
-        // Multiple STUN servers for NAT discovery
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:stun3.l.google.com:19302' },
-        { urls: 'stun:stun4.l.google.com:19302' },
-        
-        // Metered.ca free TURN servers (most reliable free option)
-        {
-            urls: 'turn:openrelay.metered.ca:80',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        },
-        {
-            urls: 'turn:openrelay.metered.ca:443',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        },
-        {
-            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        },
-        {
-            urls: 'turns:openrelay.metered.ca:443?transport=tcp',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        },
-        
-        // numb.viagenie.ca backup
-        {
-            urls: 'turn:numb.viagenie.ca',
-            username: 'webrtc@live.com',
-            credential: 'muazkh'
-        },
-        
-        // Backup relay servers
-        {
-            urls: 'turn:relay1.expressturn.com:3478',
-            username: 'efB64MYB1VR6H04CKB',
-            credential: 'pqPT8QYNjbeM1n3E'
-        },
-        {
-            urls: 'turn:a.relay.metered.ca:80',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        },
-        {
-            urls: 'turn:a.relay.metered.ca:80?transport=tcp',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        },
-        {
-            urls: 'turn:a.relay.metered.ca:443',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        },
-        {
-            urls: 'turn:a.relay.metered.ca:443?transport=tcp',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        }
+        { urls: 'stun:stun1.l.google.com:19302' }
     ],
-    // Switch to 'all' to try direct connection first, then fallback to TURN
-    // This gives better performance when possible
     iceTransportPolicy: 'all',
     bundlePolicy: 'max-bundle',
     rtcpMuxPolicy: 'require',
     iceCandidatePoolSize: 10
 };
+
+// Fetch ICE servers (including TURN) from the backend and merge into config.
+async function loadIceServers() {
+    try {
+        const res = await fetch('/api/ice-servers', { cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (data && Array.isArray(data.iceServers) && data.iceServers.length) {
+            iceServers.iceServers = data.iceServers;
+            const hasTurn = data.iceServers.some(s => {
+                const u = Array.isArray(s.urls) ? s.urls : [s.urls];
+                return u.some(x => typeof x === 'string' && x.startsWith('turn'));
+            });
+            console.log(`✅ ICE servers loaded from backend (TURN ${hasTurn ? 'present' : 'MISSING — cross-network calls may fail'})`);
+        }
+    } catch (err) {
+        console.warn('⚠️ Could not load ICE servers from backend, using STUN-only:', err);
+    }
+}
 
 // Initialize WebSocket connection with reconnection logic
 let wsReconnectAttempts = 0;
@@ -919,7 +879,9 @@ function handleError(payload) {
 }
 
 // Initialize on page load
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => {
+    // Load TURN/STUN config from backend before any peer connection is made.
+    await loadIceServers();
     initWebSocket();
     
     // Initialize UI components safely

@@ -106,6 +106,16 @@ async def root():
     })
 
 
+@app.get("/api/ice-servers")
+async def ice_servers():
+    """Public: WebRTC ICE (STUN/TURN) config for the browser client.
+
+    No API key — the web client needs this to establish peer connections.
+    TURN entries come from TURN_URLS / TURN_USERNAME / TURN_CREDENTIAL env vars.
+    """
+    return {"iceServers": settings.get_ice_servers()}
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint - returns service status and metrics."""

@@ -27,6 +27,30 @@ class Settings:
     # Room settings
     ROOM_TTL_HOURS: int = int(os.getenv("ROOM_TTL_HOURS", "24"))
     MAX_PARTICIPANTS_PER_ROOM: int = int(os.getenv("MAX_PARTICIPANTS_PER_ROOM", "50"))
+
+    # WebRTC ICE / TURN. STUN alone fails across strict NATs (e.g. phone on
+    # cellular <-> PC). Set these to a working TURN server for reliable connects.
+    # TURN_URLS is comma-separated, e.g.
+    #   "turn:xxx.metered.live:80,turn:xxx.metered.live:443?transport=tcp"
+    TURN_URLS: str = os.getenv("TURN_URLS", "")
+    TURN_USERNAME: str = os.getenv("TURN_USERNAME", "")
+    TURN_CREDENTIAL: str = os.getenv("TURN_CREDENTIAL", "")
+
+    def get_ice_servers(self) -> list:
+        """Build the iceServers list served to the browser client."""
+        ice = [
+            {"urls": "stun:stun.l.google.com:19302"},
+            {"urls": "stun:stun1.l.google.com:19302"},
+        ]
+        if self.TURN_URLS:
+            urls = [u.strip() for u in self.TURN_URLS.split(",") if u.strip()]
+            entry = {"urls": urls}
+            if self.TURN_USERNAME:
+                entry["username"] = self.TURN_USERNAME
+            if self.TURN_CREDENTIAL:
+                entry["credential"] = self.TURN_CREDENTIAL
+            ice.append(entry)
+        return ice
     
     # Code generation
     ROOM_CODE_LENGTH: int = 6

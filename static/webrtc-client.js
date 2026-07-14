@@ -2,8 +2,10 @@
 let ws = null;
 let localStream = null;
 let mySocketId = null;
+let myDisplayName = 'You';
 let currentRoomCode = null;
 let peerConnections = {}; // socket_id -> RTCPeerConnection
+let participantNames = {}; // socket_id -> display name
 let isVideoEnabled = true;
 let isAudioEnabled = true;
 let isAppVisible = true;
